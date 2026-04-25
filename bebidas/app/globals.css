@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bordo-deep:  #2D0A10;
+  --bordo-dark:  #4A1019;
+  --bordo:       #6B1A2A;
+  --bordo-light: #8B2438;
+  --gold:        #C9A84C;
+  --gold-light:  #E0C06A;
+  --gold-pale:   #F5E9C8;
+  --surface-1:   #1C0A0F;
+  --surface-2:   #241018;
+  --surface-3:   #2E1520;
+  --surface-4:   #3A1D28;
+  --text-primary:   #F0E8D8;
+  --text-secondary: #B8A090;
+  --text-muted:     #7A5F68;
+  --border:         rgba(201,168,76,0.15);
+  --border-hover:   rgba(201,168,76,0.35);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface-2); }
+::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* Focus global */
+*:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+@layer components {
+  .card {
+    @apply rounded-xl border;
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all;
+    background: var(--gold);
+    color: var(--bordo-deep);
+  }
+  .btn-primary:hover { background: var(--gold-light); }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all border;
+    background: rgba(255,255,255,0.06);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); border-color: var(--border-hover); }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+
+  .btn-danger {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all border;
+    background: rgba(224,82,82,0.12);
+    border-color: rgba(224,82,82,0.3);
+    color: #E05252;
+  }
+  .btn-danger:hover { background: rgba(224,82,82,0.22); }
+
+  .input {
+    @apply w-full rounded-lg px-3 py-2.5 text-sm transition-colors;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .input:focus { outline: none; border-color: var(--gold); }
+  .input::placeholder { color: var(--text-muted); }
+
+  select.input { cursor: pointer; }
+  select.input option { background: var(--surface-3); }
+
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wider mb-1.5;
+    color: var(--text-muted);
+  }
+
+  .badge {
+    @apply inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+  .badge-gold  { background: rgba(201,168,76,0.15); color: var(--gold); }
+  .badge-green { background: rgba(91,173,122,0.15); color: #5BAD7A; }
+  .badge-red   { background: rgba(224,82,82,0.15);  color: #E05252; }
+  .badge-amber { background: rgba(224,160,80,0.15); color: #E0A050; }
+  .badge-muted { background: rgba(255,255,255,0.07); color: var(--text-muted); }
+
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    @apply text-2xl font-semibold;
+    color: var(--text-primary);
+  }
+
+  .table-row-hover:hover td { background: rgba(255,255,255,0.025); }
+
+  .kpi-card {
+    @apply rounded-xl p-5 relative overflow-hidden;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .kpi-label { @apply text-xs font-semibold uppercase tracking-widest; color: var(--text-muted); }
+  .kpi-value { font-family: 'Playfair Display', serif; @apply text-3xl font-bold mt-1.5 mb-0.5 leading-none; }
+  .kpi-sub   { @apply text-xs; color: var(--text-muted); }
+}
