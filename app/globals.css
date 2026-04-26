@@ -120,3 +120,13 @@ body {
   .kpi-value { font-family: 'Playfair Display', serif; @apply text-3xl font-bold mt-1.5 mb-0.5 leading-none; }
   .kpi-sub   { @apply text-xs; color: var(--text-muted); }
 }
+
+@media (max-width: 768px) {
+  .kpi-grid-4 { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .dash-grid-2 { grid-template-columns: 1fr !important; }
+  .venta-layout { grid-template-columns: 1fr !important; }
+  .form-grid-2 { grid-template-columns: 1fr !important; }
+  .form-grid-3 { grid-template-columns: 1fr !important; }
+  .kpi-value { font-size: 22px !important; }
+  .page-title { font-size: 20px !important; }
+}

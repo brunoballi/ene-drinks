@@ -56,7 +56,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 }}>
+      <div className='kpi-grid-4' style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 }}>
         <KpiCard
           label="Ventas hoy" accent="#C9A84C"
           value={loading ? '...' : fmt(hoy?.total_vendido ?? 0)}
@@ -82,7 +82,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Gráfico + Alertas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 20 }}>
+      <div className='dash-grid-2' style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 20 }}>
         <div className="card" style={{ padding: 20 }}>
           <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Ventas — últimos 7 días</p>
           <ResponsiveContainer width="100%" height={160}>

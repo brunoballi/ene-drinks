@@ -118,7 +118,7 @@ export default function NuevaVentaPage() {
         <a href="/ventas/historial" style={{ fontSize: 13, color: 'var(--text-secondary)', textDecoration: 'none' }}>Ver historial →</a>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
+      <div className='venta-layout' style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
         {/* Izquierda */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Buscador */}
