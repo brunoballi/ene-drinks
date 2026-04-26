@@ -1,11 +1,14 @@
 import { createClient } from './supabase'
-import { ProductoInsert, VentaDetalleInsert, ItemCarrito } from '@/types/database'
+import { VentaDetalleInsert, ItemCarrito } from '@/types/database'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getDb = () => createClient() as any
 
 // ── PRODUCTOS ────────────────────────────────────────────────
 
 // Fuente única: v_stock tiene stock_total_un calculado + joins resueltos
 export async function getProductos() {
-  const sb = createClient()
+  const sb = getDb()
   const { data, error } = await sb
     .from('v_stock')
     .select('*')
@@ -33,7 +36,7 @@ export async function upsertProducto(p: {
   stock_un?: number
   stock_caja?: number
 }) {
-  const sb = createClient()
+  const sb = getDb()
 
   // Campos de precio/catálogo — siempre se actualizan
   const catalogoFields = {
@@ -48,11 +51,11 @@ export async function upsertProducto(p: {
   }
 
   if (p.id) {
-    // UPDATE: incluir stock solo si se cambió explícitamente
-    const updateFields: any = { ...catalogoFields }
-    if (p.stock_un  !== undefined) updateFields.stock_un  = p.stock_un
-    if (p.stock_caja !== undefined) updateFields.stock_caja = p.stock_caja
-
+    const updateFields = {
+      ...catalogoFields,
+      ...(p.stock_un   !== undefined ? { stock_un:   p.stock_un }   : {}),
+      ...(p.stock_caja !== undefined ? { stock_caja: p.stock_caja } : {}),
+    }
     const { error } = await sb.from('productos').update(updateFields).eq('id', p.id)
     if (error) throw error
   } else {
@@ -68,7 +71,7 @@ export async function upsertProducto(p: {
 
 // Ajuste manual de stock (independiente del catálogo)
 export async function ajustarStock(id: number, stockUn: number, stockCaja: number) {
-  const sb = createClient()
+  const sb = getDb()
   const { error } = await sb
     .from('productos')
     .update({ stock_un: stockUn, stock_caja: stockCaja })
@@ -77,13 +80,13 @@ export async function ajustarStock(id: number, stockUn: number, stockCaja: numbe
 }
 
 export async function deleteProducto(id: number) {
-  const sb = createClient()
+  const sb = getDb()
   const { error } = await sb.from('productos').update({ activo: false }).eq('id', id)
   if (error) throw error
 }
 
 export async function searchProductos(q: string) {
-  const sb = createClient()
+  const sb = getDb()
   const { data, error } = await sb
     .from('v_stock')
     .select('*')
@@ -98,7 +101,7 @@ export async function searchProductos(q: string) {
 
 // ── VENTAS ───────────────────────────────────────────────────
 export async function getVentas(desde?: string, hasta?: string) {
-  const sb = createClient()
+  const sb = getDb()
 
   // Paso 1: cabeceras de ventas
   let qVentas = sb
@@ -130,7 +133,7 @@ export async function getVentas(desde?: string, hasta?: string) {
 }
 
 export async function getVentasHoy() {
-  const sb = createClient()
+  const sb = getDb()
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
   const { data, error } = await sb
     .from('v_resumen_diario')
@@ -142,7 +145,7 @@ export async function getVentasHoy() {
 }
 
 export async function getResumenSemana() {
-  const sb = createClient()
+  const sb = getDb()
   const hace7 = new Date()
   hace7.setDate(hace7.getDate() - 7)
   const desde = hace7.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
@@ -156,7 +159,7 @@ export async function getResumenSemana() {
 }
 
 export async function getResumenMes() {
-  const sb = createClient()
+  const sb = getDb()
   const ahora = new Date()
   const primerDia = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
     .toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
@@ -174,7 +177,7 @@ export async function confirmarVenta(
   fecha: string,
   formaPago: string | null
 ): Promise<number> {
-  const sb = createClient()
+  const sb = getDb()
 
   // 1. Crear cabecera
   const { data: venta, error: errVenta } = await sb
@@ -206,7 +209,7 @@ export async function confirmarVenta(
 
 // ── COMPRAS ──────────────────────────────────────────────────
 export async function getCompras() {
-  const sb = createClient()
+  const sb = getDb()
   const { data, error } = await sb
     .from('compras')
     .select('*, proveedores(nombre), productos(codigo, nombre)')
@@ -224,7 +227,7 @@ export async function registrarCompra(compra: {
   costoTotal: number
   pagado: boolean
 }) {
-  const sb = createClient()
+  const sb = getDb()
   const { error } = await sb.from('compras').insert({
     fecha: compra.fecha,
     proveedor_id: compra.proveedorId,
@@ -239,7 +242,7 @@ export async function registrarCompra(compra: {
 
 // ── GANANCIAS ────────────────────────────────────────────────
 export async function getGanancias(desde?: string, hasta?: string) {
-  const sb = createClient()
+  const sb = getDb()
   let q = sb.from('v_ganancias').select('*').order('nro_venta', { ascending: false })
   if (desde) q = q.gte('fecha', desde)
   if (hasta) q = q.lte('fecha', hasta)
@@ -250,7 +253,7 @@ export async function getGanancias(desde?: string, hasta?: string) {
 
 // ── DASHBOARD ────────────────────────────────────────────────
 export async function getStockBajo(threshold = 3) {
-  const sb = createClient()
+  const sb = getDb()
   const { data, error } = await sb
     .from('v_stock')
     .select('*')
@@ -263,7 +266,7 @@ export async function getStockBajo(threshold = 3) {
 }
 
 export async function getTopProductosMes() {
-  const sb = createClient()
+  const sb = getDb()
   const primerDia = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 
@@ -286,14 +289,14 @@ export async function getTopProductosMes() {
 
 // ── PROVEEDORES ──────────────────────────────────────────────
 export async function getProveedores() {
-  const sb = createClient()
+  const sb = getDb()
   const { data, error } = await sb.from('proveedores').select('*').eq('activo', true).order('nombre')
   if (error) throw error
   return data
 }
 
 export async function getCategorias() {
-  const sb = createClient()
+  const sb = getDb()
   const { data, error } = await sb.from('categorias').select('*').order('nombre')
   if (error) throw error
   return data
