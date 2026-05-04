@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { getVentas } from '@/lib/queries'
+import { getVentas, eliminarVenta } from '@/lib/queries'
 import { fmt } from '@/lib/utils'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 const PER_PAGE = 20
 
@@ -32,6 +33,19 @@ export default function HistorialPage() {
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
+
+  const eliminar = async (v: any) => {
+    const nombres = (v.ventas_detalle ?? [])
+      .map((d: any) => d.productos?.nombre).filter(Boolean).join(', ') || 'sin detalle'
+    if (!confirm(`¿Eliminar la venta #${v.nro_venta}?\n${nombres}\nTotal: ${fmt(v.total ?? 0)}\n\n⚠️ Esta acción no se puede deshacer y no restaura el stock.`)) return
+    try {
+      await eliminarVenta(v.id)
+      setVentas(prev => prev.filter(x => x.id !== v.id))
+      toast.success(`Venta #${v.nro_venta} eliminada`)
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Error al eliminar')
+    }
+  }
 
   // Filtrado local — reactivo a busqueda + fechas sin necesitar nueva query
   useEffect(() => {
@@ -200,6 +214,7 @@ export default function HistorialPage() {
                     { label:'Total',      w:110 },
                     { label:'Ganancia',   w:110 },
                     { label:'Forma pago', w:120 },
+                    { label:'', w:50 },
                   ].map(h => (
                     <th key={h.label} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', whiteSpace:'nowrap', width: h.w }}>
                       {h.label}
@@ -210,7 +225,7 @@ export default function HistorialPage() {
               <tbody>
                 {paginadas.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding:'30px 14px', textAlign:'center', color:'var(--text-muted)' }}>
+                    <td colSpan={8} style={{ padding:'30px 14px', textAlign:'center', color:'var(--text-muted)' }}>
                       Sin resultados para los filtros aplicados
                     </td>
                   </tr>
@@ -246,6 +261,15 @@ export default function HistorialPage() {
                           ? <span className="badge badge-muted">{v.forma_pago}</span>
                           : <span style={{ color:'var(--text-muted)', fontSize:11 }}>—</span>
                         }
+                      </td>
+                      <td style={{ padding:'11px 8px' }}>
+                        <button
+                          onClick={() => eliminar(v)}
+                          title="Eliminar venta"
+                          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'4px 6px', borderRadius:4, transition:'all 0.15s', lineHeight:1 }}
+                          onMouseEnter={e => { e.currentTarget.style.color='#E05252'; e.currentTarget.style.background='rgba(224,82,82,0.1)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color='var(--text-muted)'; e.currentTarget.style.background='none' }}
+                        >🗑</button>
                       </td>
                     </tr>
                   )

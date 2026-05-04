@@ -207,6 +207,14 @@ export async function confirmarVenta(
   return venta.nro_venta
 }
 
+export async function eliminarVenta(id: number) {
+  const sb = getDb()
+  // Los detalles se eliminan en cascada (ON DELETE CASCADE en el schema)
+  // El stock NO se restaura automaticamente — es una eliminacion logica de registro
+  const { error } = await sb.from('ventas').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ── COMPRAS ──────────────────────────────────────────────────
 export async function getCompras() {
   const sb = getDb()
