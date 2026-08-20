@@ -158,15 +158,18 @@ export async function getResumenSemana() {
   return data
 }
 
-export async function getResumenMes() {
+export async function getResumenMes(year?: number, month?: number) {
   const sb = getDb()
   const ahora = new Date()
-  const primerDia = new Date(ahora.getFullYear(), ahora.getMonth(), 1)
-    .toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  const y = year ?? ahora.getFullYear()
+  const m = month ?? ahora.getMonth()
+  const primerDia   = new Date(y, m,     1).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  const primerDiaSig = new Date(y, m + 1, 1).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
   const { data, error } = await sb
     .from('v_resumen_diario')
     .select('*')
     .gte('fecha', primerDia)
+    .lt('fecha', primerDiaSig)
     .order('fecha')
   if (error) throw error
   return data
@@ -209,8 +212,9 @@ export async function confirmarVenta(
 
 export async function eliminarVenta(id: number) {
   const sb = getDb()
-  // Los detalles se eliminan en cascada (ON DELETE CASCADE en el schema)
-  // El stock NO se restaura automaticamente — es una eliminacion logica de registro
+  // Los detalles se eliminan en cascada (ON DELETE CASCADE en el schema).
+  // Al borrarse cada detalle, el trigger trg_restaurar_stock devuelve las
+  // unidades al stock (ver fix_stock_al_borrar_venta.sql).
   const { error } = await sb.from('ventas').delete().eq('id', id)
   if (error) throw error
 }
@@ -273,15 +277,19 @@ export async function getStockBajo(threshold = 3) {
   return data
 }
 
-export async function getTopProductosMes() {
+export async function getTopProductosMes(year?: number, month?: number) {
   const sb = getDb()
-  const primerDia = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  const ahora = new Date()
+  const y = year ?? ahora.getFullYear()
+  const m = month ?? ahora.getMonth()
+  const primerDia   = new Date(y, m,     1).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+  const primerDiaSig = new Date(y, m + 1, 1).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 
   const { data, error } = await sb
     .from('ventas_detalle')
     .select('cantidad, precio_unitario, productos(nombre, codigo, categorias(nombre)), ventas!inner(fecha)')
     .gte('ventas.fecha', primerDia)
+    .lt('ventas.fecha', primerDiaSig)
   if (error) throw error
 
   // Agrupar por producto
@@ -303,9 +311,72 @@ export async function getProveedores() {
   return data
 }
 
+export async function upsertProveedor(p: { id?: number; nombre: string }) {
+  const sb = getDb()
+  if (p.id) {
+    const { error } = await sb.from('proveedores').update({ nombre: p.nombre }).eq('id', p.id)
+    if (error) throw error
+  } else {
+    const codProv = 'PROV-' + Date.now().toString(36).toUpperCase()
+    const { error } = await sb.from('proveedores').insert({ cod_prov: codProv, nombre: p.nombre })
+    if (error) throw error
+  }
+}
+
+export async function deleteProveedor(id: number) {
+  const sb = getDb()
+  const { error } = await sb.from('proveedores').update({ activo: false }).eq('id', id)
+  if (error) throw error
+}
+
+// ── NEGOCIO (branding configurable) ─────────────────────────
+export async function getNegocio() {
+  const sb = getDb()
+  const { data, error } = await sb.from('negocio').select('*').eq('id', 1).single()
+  if (error) throw error
+  return data
+}
+
+export async function upsertNegocio(n: { nombre: string; logo_url?: string | null }) {
+  const sb = getDb()
+  const { error } = await sb.from('negocio').update({
+    nombre: n.nombre,
+    ...(n.logo_url !== undefined ? { logo_url: n.logo_url } : {}),
+    actualizado_en: new Date().toISOString(),
+  }).eq('id', 1)
+  if (error) throw error
+}
+
+export async function subirLogo(file: File) {
+  const sb = getDb()
+  const ext = file.name.split('.').pop()
+  const path = `logo-${Date.now()}.${ext}`
+  const { error } = await sb.storage.from('logos').upload(path, file, { upsert: true })
+  if (error) throw error
+  const { data } = sb.storage.from('logos').getPublicUrl(path)
+  return data.publicUrl as string
+}
+
 export async function getCategorias() {
   const sb = getDb()
   const { data, error } = await sb.from('categorias').select('*').order('nombre')
   if (error) throw error
   return data
+}
+
+export async function upsertCategoria(c: { id?: number; nombre: string }) {
+  const sb = getDb()
+  if (c.id) {
+    const { error } = await sb.from('categorias').update({ nombre: c.nombre }).eq('id', c.id)
+    if (error) throw error
+  } else {
+    const { error } = await sb.from('categorias').insert({ nombre: c.nombre })
+    if (error) throw error
+  }
+}
+
+export async function deleteCategoria(id: number) {
+  const sb = getDb()
+  const { error } = await sb.from('categorias').delete().eq('id', id)
+  if (error) throw error
 }

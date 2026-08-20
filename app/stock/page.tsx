@@ -4,13 +4,18 @@ import { getProductosConStock } from '@/lib/queries'
 import { fmt, stockTotal, STOCK_THRESHOLD } from '@/lib/utils'
 import { StockView } from '@/types/database'
 
+const PER_PAGE = 20
+
 export default function StockPage() {
   const [items, setItems]       = useState<StockView[]>([])
   const [filtrados, setFiltrados] = useState<StockView[]>([])
   const [loading, setLoading]   = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro]     = useState('todos')
+  const [catFilter, setCatFilter] = useState('')
+  const [provFilter, setProvFilter] = useState('')
   const [threshold, setThreshold] = useState(STOCK_THRESHOLD)
+  const [page, setPage]         = useState(0)
 
   useEffect(() => {
     getProductosConStock().then(data => {
@@ -28,9 +33,18 @@ export default function StockPage() {
         : filtro === 'bajo'  ? st > 0 && st < threshold
         : filtro === 'cero'  ? st === 0
         : st >= threshold
-      return matchQ && matchF
+      const matchCat  = !catFilter || p.categoria === catFilter
+      const matchProv = !provFilter || p.proveedor === provFilter
+      return matchQ && matchF && matchCat && matchProv
     }))
-  }, [busqueda, filtro, threshold, items])
+    setPage(0)
+  }, [busqueda, filtro, catFilter, provFilter, threshold, items])
+
+  const categoriasDisp  = Array.from(new Set(items.map(p => p.categoria).filter(Boolean))).sort() as string[]
+  const proveedoresDisp = Array.from(new Set(items.map(p => p.proveedor).filter(Boolean))).sort() as string[]
+
+  const totalPages = Math.ceil(filtrados.length / PER_PAGE)
+  const paginados   = filtrados.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
 
   const bajo  = items.filter(p => (p.stock_total_un ?? 0) > 0 && (p.stock_total_un ?? 0) < threshold).length
   const cero  = items.filter(p => (p.stock_total_un ?? 0) === 0).length
@@ -57,7 +71,7 @@ export default function StockPage() {
       </div>
 
       {/* KPIs rápidos */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20 }}>
+      <div className="kpi-grid-3" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20 }}>
         <KpiStock label="Stock OK" valor={ok} color="#5BAD7A" onClick={() => setFiltro('ok')} active={filtro==='ok'} />
         <KpiStock label="Stock bajo" valor={bajo} color="#E0A050" onClick={() => setFiltro('bajo')} active={filtro==='bajo'} />
         <KpiStock label="Sin stock" valor={cero} color="#E05252" onClick={() => setFiltro('cero')} active={filtro==='cero'} />
@@ -76,15 +90,23 @@ export default function StockPage() {
             <option value="cero">Sin stock</option>
             <option value="ok">Stock OK</option>
           </select>
-          {filtro !== 'todos' && (
-            <button className="btn-ghost" onClick={() => setFiltro('todos')}>✕ Limpiar filtro</button>
+          <select className="input" style={{ width:200 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+            <option value="">Todas las categorías</option>
+            {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select className="input" style={{ width:200 }} value={provFilter} onChange={e => setProvFilter(e.target.value)}>
+            <option value="">Todos los proveedores</option>
+            {proveedoresDisp.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          {(filtro !== 'todos' || catFilter || provFilter) && (
+            <button className="btn-ghost" onClick={() => { setFiltro('todos'); setCatFilter(''); setProvFilter('') }}>✕ Limpiar filtro</button>
           )}
         </div>
 
         {loading ? <p style={{ color:'var(--text-muted)', fontSize:13 }}>Cargando...</p> : (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <thead>
+              <thead className="grid-thead">
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
                   {['Código','Producto','Categoría','Proveedor','Stock UN','Stock CAJA','Total UN','UxC','Estado'].map(h => (
                     <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', whiteSpace:'nowrap' }}>{h}</th>
@@ -94,7 +116,7 @@ export default function StockPage() {
               <tbody>
                 {filtrados.length === 0
                   ? <tr><td colSpan={9} style={{ padding:'30px 14px', textAlign:'center', color:'var(--text-muted)' }}>Sin resultados</td></tr>
-                  : filtrados.map(p => {
+                  : paginados.map(p => {
                     const st = p.stock_total_un ?? 0
                     const dotColor = st === 0 ? '#E05252' : st < threshold ? '#E0A050' : '#5BAD7A'
                     const badgeCls = st === 0 ? 'badge-red' : st < threshold ? 'badge-amber' : 'badge-green'
@@ -125,6 +147,15 @@ export default function StockPage() {
                 }
               </tbody>
             </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div style={{ display:'flex', gap:6, marginTop:16, justifyContent:'center', alignItems:'center' }}>
+            <span style={{ fontSize:12, color:'var(--text-muted)', marginRight:8 }}>{filtrados.length} resultados</span>
+            {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => (
+              <button key={i} onClick={() => setPage(i)} style={{ width:30, height:30, borderRadius:6, border:'1px solid var(--border)', background: i===page ? 'var(--gold)' : 'rgba(255,255,255,0.05)', color: i===page ? 'var(--bordo-deep)' : 'var(--text-secondary)', cursor:'pointer', fontSize:13, fontWeight: i===page ? 600 : 400 }}>{i+1}</button>
+            ))}
           </div>
         )}
       </div>

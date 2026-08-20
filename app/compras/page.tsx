@@ -4,6 +4,8 @@ import { getCompras, getProveedores, registrarCompra, searchProductos } from '@/
 import { fmt, today } from '@/lib/utils'
 import { toast } from 'sonner'
 
+const PER_PAGE = 20
+
 const EMPTY = {
   id:           null as number | null,
   fecha:        today(),
@@ -25,7 +27,19 @@ export default function ComprasPage() {
   const [saving, setSaving]           = useState(false)
   const [prodResults, setProdResults] = useState<any[]>([])
   const [showAC, setShowAC]           = useState(false)
+  const [page, setPage]               = useState(0)
+  const [busqueda, setBusqueda]       = useState('')
+  const [provFilter, setProvFilter]   = useState('')
+  const [pagadoFilter, setPagadoFilter] = useState('')
   const debounceRef = useRef<NodeJS.Timeout>()
+
+  const filtradas = compras.filter((c: any) => {
+    const q = busqueda.toLowerCase()
+    const matchQ = !q || c.productos?.nombre?.toLowerCase().includes(q)
+    const matchProv = !provFilter || c.proveedores?.nombre === provFilter
+    const matchPag = !pagadoFilter || (pagadoFilter === 'pagado' ? c.pagado : !c.pagado)
+    return matchQ && matchProv && matchPag
+  })
 
   const cargar = async () => {
     const [c, p] = await Promise.all([getCompras(), getProveedores()])
@@ -34,6 +48,7 @@ export default function ComprasPage() {
   }
 
   useEffect(() => { cargar() }, [])
+  useEffect(() => { setPage(0) }, [busqueda, provFilter, pagadoFilter])
 
   const buscarProducto = useCallback((q: string) => {
     setForm(f => ({ ...f, productoNombre: q, productoId: null }))
@@ -112,7 +127,7 @@ export default function ComprasPage() {
   // ── Eliminar ──────────────────────────────────────────────
   const eliminar = async (c: any) => {
     const prod = c.productos?.nombre ?? 'sin producto'
-    if (!confirm(`¿Eliminar esta compra?\n${prod} · ${c.cantidad} ${c.tipo} · ${fmt(c.costo_total)}\n\n⚠️ No se revierte el stock sumado al registrar.`)) return
+    if (!confirm(`¿Eliminar esta compra?\n${prod} · ${c.cantidad} ${c.tipo} · ${fmt(c.costo_total)}\n\n⚠️ Esta acción no se puede deshacer.\nSe descuenta del stock lo que sumó esta compra.`)) return
     try {
       const sb = (await import('@/lib/supabase')).createClient() as any
       const { error } = await sb.from('compras').delete().eq('id', c.id)
@@ -131,6 +146,11 @@ export default function ComprasPage() {
   })
 
   const esEdicion = !!form.id
+  const totalPages = Math.ceil(filtradas.length / PER_PAGE)
+  const paginadas   = filtradas.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  const totalCantidad = filtradas.reduce((s: number, c: any) => s + (c.cantidad ?? 0), 0)
+  const totalCosto    = filtradas.reduce((s: number, c: any) => s + (c.costo_total ?? 0), 0)
+  const hayFiltro = busqueda || provFilter || pagadoFilter
 
   return (
     <div>
@@ -143,7 +163,7 @@ export default function ComprasPage() {
       </div>
 
       {/* KPIs deuda */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20 }}>
+      <div className="kpi-grid-3" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20 }}>
         {['ALVV','PROCOPIO','Krow'].map(prov => (
           <div key={prov} className="kpi-card">
             <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'var(--gold)' }} />
@@ -158,10 +178,24 @@ export default function ComprasPage() {
 
       {/* Tabla */}
       <div className="card" style={{ padding:20 }}>
+        <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
+          <input className="input" style={{ flex:1, minWidth:200 }} value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar producto..." />
+          <select className="input" style={{ width:200 }} value={provFilter} onChange={e => setProvFilter(e.target.value)}>
+            <option value="">Todos los proveedores</option>
+            {proveedores.map((p:any) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+          </select>
+          <select className="input" style={{ width:160 }} value={pagadoFilter} onChange={e => setPagadoFilter(e.target.value)}>
+            <option value="">Pagados y pendientes</option>
+            <option value="pagado">Pagados</option>
+            <option value="pendiente">Pendientes</option>
+          </select>
+          {hayFiltro && <button className="btn-ghost" onClick={() => { setBusqueda(''); setProvFilter(''); setPagadoFilter('') }}>✕ Limpiar</button>}
+        </div>
+
         {loading ? <p style={{ color:'var(--text-muted)', fontSize:13 }}>Cargando...</p> : (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <thead>
+              <thead className="grid-thead">
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
                   {['Fecha','Proveedor','Producto','Tipo','Cantidad','Costo total','Pagado',''].map(h => (
                     <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', whiteSpace:'nowrap' }}>{h}</th>
@@ -169,9 +203,9 @@ export default function ComprasPage() {
                 </tr>
               </thead>
               <tbody>
-                {compras.length === 0
-                  ? <tr><td colSpan={8} style={{ padding:'30px 14px', textAlign:'center', color:'var(--text-muted)' }}>Sin compras registradas</td></tr>
-                  : compras.map((c:any) => (
+                {filtradas.length === 0
+                  ? <tr><td colSpan={8} style={{ padding:'30px 14px', textAlign:'center', color:'var(--text-muted)' }}>{compras.length === 0 ? 'Sin compras registradas' : 'Sin resultados para los filtros aplicados'}</td></tr>
+                  : paginadas.map((c:any) => (
                     <tr key={c.id} className="table-row-hover" style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ padding:'11px 14px', fontSize:12, color:'var(--text-muted)' }}>{c.fecha}</td>
                       <td style={{ padding:'11px 14px' }}>
@@ -215,7 +249,28 @@ export default function ComprasPage() {
                   ))
                 }
               </tbody>
+              {filtradas.length > 0 && (
+                <tfoot>
+                  <tr style={{ borderTop:'2px solid var(--border-hover)', fontWeight:600 }}>
+                    <td colSpan={4} style={{ padding:'11px 14px', color:'var(--text-muted)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                      Totales ({filtradas.length})
+                    </td>
+                    <td style={{ padding:'11px 14px', textAlign:'center' }}>{totalCantidad}</td>
+                    <td style={{ padding:'11px 14px', fontVariantNumeric:'tabular-nums' }}>{fmt(totalCosto)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div style={{ display:'flex', gap:6, marginTop:16, justifyContent:'center', alignItems:'center' }}>
+            <span style={{ fontSize:12, color:'var(--text-muted)', marginRight:8 }}>{filtradas.length} resultados</span>
+            {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => (
+              <button key={i} onClick={() => setPage(i)} style={{ width:30, height:30, borderRadius:6, border:'1px solid var(--border)', background: i===page ? 'var(--gold)' : 'rgba(255,255,255,0.05)', color: i===page ? 'var(--bordo-deep)' : 'var(--text-secondary)', cursor:'pointer', fontSize:13, fontWeight: i===page ? 600 : 400 }}>{i+1}</button>
+            ))}
           </div>
         )}
       </div>
@@ -242,7 +297,7 @@ export default function ComprasPage() {
                   💡 En edición podés cambiar fecha, proveedor, costo y estado de pago. El producto, tipo y cantidad no se modifican para mantener la trazabilidad del stock.
                 </div>
               )}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <div className="form-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
                 <div>
                   <label className="label">Fecha</label>
                   <input className="input" type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha:e.target.value }))} />

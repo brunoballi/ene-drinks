@@ -47,7 +47,7 @@ export default function DashboardPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 className="page-title">Dashboard</h1>
+          <h1 className="page-title">Panel General</h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, textTransform: 'capitalize' }}>{fechaHoy}</p>
         </div>
         <Link href="/ventas/nueva" className="btn-primary">

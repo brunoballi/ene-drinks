@@ -101,6 +101,10 @@ export default function NuevaVentaPage() {
       const nro = await confirmarVenta(carrito, fecha, formaPago || null)
       toast.success(`Venta #${nro} confirmada — ${fmt(totalCarrito)}`)
       setCarrito([])
+      // Volver a proponer la fecha de hoy y limpiar la forma de pago,
+      // para que la próxima venta no herede los datos de la anterior
+      setFecha(today())
+      setFormaPago('')
       router.refresh()
     } catch (e: any) {
       toast.error(e.message ?? 'Error al confirmar la venta')
@@ -175,7 +179,7 @@ export default function NuevaVentaPage() {
             )}
 
             {/* Controles */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div className="form-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <div>
                 <label className="label">Tipo</label>
                 <select className="input" value={tipo} onChange={e => setTipo(e.target.value as 'UN' | 'CAJA')}>
@@ -192,10 +196,6 @@ export default function NuevaVentaPage() {
                 <input className="input" type="number" value={precio} onChange={e => setPrecio(e.target.value === '' ? '' : Number(e.target.value))} placeholder="0" />
               </div>
             </div>
-
-            <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={agregar}>
-              <PlusIcon /> Agregar al carrito
-            </button>
           </div>
 
           {/* Datos de la venta */}
@@ -215,6 +215,11 @@ export default function NuevaVentaPage() {
               </div>
             </div>
           </div>
+
+          {/* Agregar al carrito — al final, después de cargar todos los datos */}
+          <button className="btn-secondary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={agregar}>
+            <PlusIcon /> Agregar al carrito
+          </button>
         </div>
 
         {/* Carrito */}

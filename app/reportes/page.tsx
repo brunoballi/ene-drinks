@@ -5,25 +5,40 @@ import { fmt, today } from '@/lib/utils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 
 const COLORES = ['#C9A84C','#8B2438','#5BAD7A','#5B8FE0','#E0A050','#9B59B6','#E05252','#1ABC9C']
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 export default function ReportesPage() {
+  const ahora = new Date()
+  const [anio, setAnio]         = useState(ahora.getFullYear())
+  const [mesIdx, setMesIdx]     = useState(ahora.getMonth())
   const [mes, setMes]           = useState<any[]>([])
   const [top, setTop]           = useState<any[]>([])
   const [ganancias, setGanancias] = useState<any[]>([])
   const [stock, setStock]       = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
 
+  const esMesActual = anio === ahora.getFullYear() && mesIdx === ahora.getMonth()
+
   useEffect(() => {
+    setLoading(true)
     Promise.all([
-      getResumenMes(),
-      getTopProductosMes(),
+      getResumenMes(anio, mesIdx),
+      getTopProductosMes(anio, mesIdx),
       getGanancias(),
       getProductosConStock(),
     ]).then(([m, t, g, s]) => {
       setMes(m ?? []); setTop(t); setGanancias(g ?? []); setStock(s ?? [])
       setLoading(false)
     })
-  }, [])
+  }, [anio, mesIdx])
+
+  const cambiarMes = (delta: number) => {
+    let m = mesIdx + delta
+    let y = anio
+    if (m < 0) { m = 11; y -= 1 }
+    if (m > 11) { m = 0; y += 1 }
+    setMesIdx(m); setAnio(y)
+  }
 
   // Totales del mes
   const totalMes   = mes.reduce((s, d) => s + (d.total_vendido ?? 0), 0)
@@ -32,15 +47,16 @@ export default function ReportesPage() {
   const ticketProm = cantVentas > 0 ? Math.round(totalMes / cantVentas) : 0
   const margenMes  = totalMes > 0 ? Math.round(ganMes / totalMes * 100) : 0
 
-  // Últimos 30 días para gráfico
-  const chartDias = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - (29 - i))
+  // Todos los días del mes seleccionado
+  const diasEnMes = new Date(anio, mesIdx + 1, 0).getDate()
+  const hoyKey    = today()
+  const chartDias = Array.from({ length: diasEnMes }, (_, i) => {
+    const d = new Date(anio, mesIdx, i + 1)
     const key   = d.toLocaleDateString('en-CA', { timeZone:'America/Argentina/Buenos_Aires' })
-    const label = d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', timeZone:'America/Argentina/Buenos_Aires' })
+    const label = String(i + 1).padStart(2, '0')
     const found = mes.find((m: any) => m.fecha === key)
-    return { label, total: found?.total_vendido ?? 0, ganancia: found?.ganancia_neta ?? 0 }
-  }).filter(d => d.total > 0 || true).slice(-14) // últimos 14 días con datos
+    return { label, total: found?.total_vendido ?? 0, ganancia: found?.ganancia_neta ?? 0, esHoy: key === hoyKey }
+  })
 
   // Por categoría
   const byCat: Record<string, number> = {}
@@ -62,29 +78,39 @@ export default function ReportesPage() {
 
   return (
     <div>
-      <div style={{ marginBottom:24 }}>
-        <h1 className="page-title">Reportes</h1>
-        <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:4 }}>
-          {new Date().toLocaleDateString('es-AR', { month:'long', year:'numeric', timeZone:'America/Argentina/Buenos_Aires' })}
-        </p>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, flexWrap:'wrap', gap:12 }}>
+        <div>
+          <h1 className="page-title">Reportes</h1>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <button className="btn-ghost" onClick={() => cambiarMes(-1)} title="Mes anterior">←</button>
+          <span style={{ fontSize:14, fontWeight:500, textTransform:'capitalize', minWidth:150, textAlign:'center' }}>
+            {MESES[mesIdx]} {anio}
+          </span>
+          <button className="btn-ghost" onClick={() => cambiarMes(1)} disabled={esMesActual} style={esMesActual ? { opacity:0.35, cursor:'not-allowed' } : {}} title="Mes siguiente">→</button>
+          {!esMesActual && (
+            <button className="btn-ghost" style={{ fontSize:12 }} onClick={() => { setAnio(ahora.getFullYear()); setMesIdx(ahora.getMonth()) }}>Volver a hoy</button>
+          )}
+        </div>
       </div>
 
       {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
+      <div className="kpi-grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
         <KpiR label="Total vendido mes"  valor={loading ? '...' : fmt(totalMes)}    accent="#C9A84C" />
         <KpiR label="Ganancia neta mes"  valor={loading ? '...' : fmt(ganMes)}      accent="#5BAD7A" color="#5BAD7A" />
-        <KpiR label="Ticket promedio"    valor={loading ? '...' : fmt(ticketProm)}  accent="#5B8FE0" color="#5B8FE0" />
+        <KpiR label="Ticket promedio"    valor={loading ? '...' : fmt(ticketProm)}  accent="#5B8FE0" color="#5B8FE0"
+          info="Ingreso total del mes ÷ cantidad de ventas del mes. Es el monto promedio que dejó cada venta." />
         <KpiR label="Margen del mes"     valor={loading ? '...' : `${margenMes}%`}  accent="#C9A84C" />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
+      <div className="dash-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
         {/* Gráfico ventas diarias */}
         <div className="card" style={{ padding:20 }}>
-          <p style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:16 }}>Ventas diarias — últimos 14 días</p>
+          <p style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:16 }}>Ventas diarias — {MESES[mesIdx]}</p>
           {loading ? <p style={{ color:'var(--text-muted)', fontSize:13 }}>Cargando...</p> : (
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={chartDias} barSize={16}>
-                <XAxis dataKey="label" tick={{ fontSize:10, fill:'var(--text-muted)' }} axisLine={false} tickLine={false} interval={1} />
+              <BarChart data={chartDias}>
+                <XAxis dataKey="label" tick={{ fontSize:9, fill:'var(--text-muted)' }} axisLine={false} tickLine={false} interval={diasEnMes > 20 ? 2 : 1} />
                 <YAxis hide />
                 <Tooltip
                   contentStyle={{ background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:8, fontSize:12 }}
@@ -92,7 +118,7 @@ export default function ReportesPage() {
                   labelStyle={{ color:'var(--text-muted)' }}
                 />
                 <Bar dataKey="total" fill="#6B1A2A" radius={[3,3,0,0]}>
-                  {chartDias.map((_, i) => <Cell key={i} fill={i === chartDias.length-1 ? '#C9A84C' : '#6B1A2A'} />)}
+                  {chartDias.map((d, i) => <Cell key={i} fill={d.esHoy ? '#C9A84C' : '#6B1A2A'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -101,7 +127,12 @@ export default function ReportesPage() {
 
         {/* Distribución por producto */}
         <div className="card" style={{ padding:20 }}>
-          <p style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:16 }}>Distribución de ingresos</p>
+          <p
+            style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:16, cursor:'help' }}
+            title="Cada porción muestra qué porcentaje del ingreso generado por el Top 6 de productos más vendidos del mes aportó ese producto en particular."
+          >
+            Distribución de ingresos <span style={{ opacity:0.6 }}>ⓘ</span>
+          </p>
           {loading || topCat.length === 0
             ? <p style={{ color:'var(--text-muted)', fontSize:13 }}>Sin datos este mes</p>
             : (
@@ -118,7 +149,7 @@ export default function ReportesPage() {
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+      <div className="dash-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
         {/* Top 10 productos */}
         <div className="card" style={{ padding:20 }}>
           <p style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:16 }}>Top 10 productos más vendidos</p>
@@ -172,11 +203,14 @@ export default function ReportesPage() {
   )
 }
 
-function KpiR({ label, valor, accent, color }: any) {
+function KpiR({ label, valor, accent, color, info }: any) {
   return (
     <div className="kpi-card">
       <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:accent }} />
-      <div className="kpi-label">{label}</div>
+      <div className="kpi-label">
+        {label}
+        {info && <span title={info} style={{ opacity:0.6, marginLeft:5, cursor:'help' }}>ⓘ</span>}
+      </div>
       <div className="kpi-value" style={{ fontSize:22, ...(color ? { color } : {}) }}>{valor}</div>
     </div>
   )

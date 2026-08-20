@@ -3,10 +3,10 @@ import ClientLayout from './client-layout'
 
 export const metadata: Metadata = {
   title: {
-    default: 'ENE Drinks — Bebidas Rosario',
-    template: '%s · ENE Drinks',
+    default: 'Flowi Gestor',
+    template: '%s · Flowi Gestor',
   },
-  description: 'Sistema de gestión de ventas, stock y compras — ENE Drinks Bebidas Rosario',
+  description: 'Sistema de gestión de ventas, stock y compras — Flowi Gestor',
   icons: { icon: '/favicon.ico' },
 }
 

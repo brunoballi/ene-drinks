@@ -27,6 +27,7 @@ export default function ProductosPage() {
   const [filtrados, setFiltrados]     = useState<any[]>([])
   const [busqueda, setBusqueda]       = useState('')
   const [catFilter, setCatFilter]     = useState('')
+  const [provFilter, setProvFilter]   = useState('')
   const [page, setPage]               = useState(0)
   const [loading, setLoading]         = useState(true)
 
@@ -56,14 +57,18 @@ export default function ProductosPage() {
     setFiltrados(
       productos.filter(p =>
         (!q || p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)) &&
-        (!catFilter || p.categoria === catFilter)
+        (!catFilter || p.categoria === catFilter) &&
+        (!provFilter || p.proveedor === provFilter)
       )
     )
     setPage(0)
-  }, [busqueda, catFilter, productos])
+  }, [busqueda, catFilter, provFilter, productos])
 
   const paginados  = filtrados.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const totalPages = Math.ceil(filtrados.length / PER_PAGE)
+  const totalStockUn   = filtrados.reduce((s, p: any) => s + (p.stock_un ?? 0), 0)
+  const totalStockCaja = filtrados.reduce((s, p: any) => s + (p.stock_caja ?? 0), 0)
+  const totalStockTotal = filtrados.reduce((s, p: any) => s + (p.stock_total_un ?? 0), 0)
 
   const abrirNuevo = () => { setForm({ ...EMPTY_FORM }); setModalCat(true) }
 
@@ -149,13 +154,17 @@ export default function ProductosPage() {
             <option value="">Todas las categorías</option>
             {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          {(busqueda || catFilter) && <button className="btn-ghost" onClick={() => { setBusqueda(''); setCatFilter('') }}>✕ Limpiar</button>}
+          <select className="input" style={{ width:200 }} value={provFilter} onChange={e => setProvFilter(e.target.value)}>
+            <option value="">Todos los proveedores</option>
+            {proveedores.map((p:any) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+          </select>
+          {(busqueda || catFilter || provFilter) && <button className="btn-ghost" onClick={() => { setBusqueda(''); setCatFilter(''); setProvFilter('') }}>✕ Limpiar</button>}
         </div>
 
         {loading ? <p style={{ color:'var(--text-muted)', fontSize:13, padding:'20px 0' }}>Cargando...</p> : (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <thead>
+              <thead className="grid-thead">
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
                   {['Código','Producto','Categoría','Proveedor','Costo UN','Venta UN','Venta CAJA','UxC','Stock UN','Stock CAJA','Total UN','Acciones'].map(h => (
                     <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', whiteSpace:'nowrap' }}>{h}</th>
@@ -201,6 +210,19 @@ export default function ProductosPage() {
                   })
                 }
               </tbody>
+              {filtrados.length > 0 && (
+                <tfoot>
+                  <tr style={{ borderTop:'2px solid var(--border-hover)', fontWeight:600 }}>
+                    <td colSpan={8} style={{ padding:'11px 14px', color:'var(--text-muted)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                      Totales ({filtrados.length})
+                    </td>
+                    <td style={{ padding:'11px 14px', textAlign:'center' }}>{totalStockUn}</td>
+                    <td style={{ padding:'11px 14px', textAlign:'center' }}>{totalStockCaja}</td>
+                    <td style={{ padding:'11px 14px' }}>{totalStockTotal} un.</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}
@@ -220,7 +242,7 @@ export default function ProductosPage() {
         <Overlay onClose={() => setModalCat(false)}>
           <ModalHeader title={form.id ? 'Editar Producto' : 'Nuevo Producto'} onClose={() => setModalCat(false)} />
           <div style={{ padding:'20px 24px' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div className="form-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
               <div>
                 <label className="label">Código</label>
                 <input className="input" value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo:e.target.value }))} placeholder="VT1001" disabled={!!form.id} style={form.id ? { opacity:.5 } : {}} />
@@ -294,7 +316,7 @@ export default function ProductosPage() {
               <span style={{ fontSize:13, color:'var(--text-muted)' }}>Stock total actual</span>
               <span style={{ fontFamily:"'Playfair Display',serif", fontSize:24, fontWeight:700, color:'var(--gold)' }}>{stockTotalPrev} un.</span>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div className="form-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
               <div>
                 <label className="label">Unidades sueltas (UN)</label>
                 <input className="input" type="number" min={0} value={stockForm.stock_un} onChange={e => setStockForm(f => ({ ...f, stock_un:Math.max(0,Number(e.target.value)) }))} />

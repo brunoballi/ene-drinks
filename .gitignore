@@ -9,3 +9,7 @@ out/
 .DS_Store
 Thumbs.db
 next-env.d.ts
+
+# Local tooling / build artifacts
+.claude/
+tsconfig.tsbuildinfo

@@ -111,6 +111,9 @@ body {
 
   .table-row-hover:hover td { background: rgba(255,255,255,0.025); }
 
+  .grid-thead { background: var(--surface-1); }
+  .grid-thead th { border-bottom: 1px solid var(--border-hover); }
+
   .kpi-card {
     @apply rounded-xl p-5 relative overflow-hidden;
     background: var(--surface-2);
@@ -123,10 +126,12 @@ body {
 
 @media (max-width: 768px) {
   .kpi-grid-4 { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .kpi-grid-3 { grid-template-columns: 1fr !important; gap: 10px !important; }
   .dash-grid-2 { grid-template-columns: 1fr !important; }
   .venta-layout { grid-template-columns: 1fr !important; }
   .form-grid-2 { grid-template-columns: 1fr !important; }
   .form-grid-3 { grid-template-columns: 1fr !important; }
   .kpi-value { font-size: 22px !important; }
   .page-title { font-size: 20px !important; }
+  .card { padding: 14px !important; }
 }

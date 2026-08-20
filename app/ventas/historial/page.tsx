@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { getVentas, eliminarVenta } from '@/lib/queries'
-import { fmt } from '@/lib/utils'
+import { fmt, FORMAS_PAGO } from '@/lib/utils'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -15,6 +15,7 @@ export default function HistorialPage() {
   const [busqueda, setBusqueda]   = useState('')
   const [desde, setDesde]         = useState('')
   const [hasta, setHasta]         = useState('')
+  const [formaPago, setFormaPago] = useState('')
   const [page, setPage]           = useState(0)
 
   // Carga inicial — sin filtros de fecha para traer TODO el historial
@@ -37,7 +38,7 @@ export default function HistorialPage() {
   const eliminar = async (v: any) => {
     const nombres = (v.ventas_detalle ?? [])
       .map((d: any) => d.productos?.nombre).filter(Boolean).join(', ') || 'sin detalle'
-    if (!confirm(`¿Eliminar la venta #${v.nro_venta}?\n${nombres}\nTotal: ${fmt(v.total ?? 0)}\n\n⚠️ Esta acción no se puede deshacer y no restaura el stock.`)) return
+    if (!confirm(`¿Eliminar la venta #${v.nro_venta}?\n${nombres}\nTotal: ${fmt(v.total ?? 0)}\n\n⚠️ Esta acción no se puede deshacer.\nEl stock de los productos vuelve a sumarse.`)) return
     try {
       await eliminarVenta(v.id)
       setVentas(prev => prev.filter(x => x.id !== v.id))
@@ -64,19 +65,21 @@ export default function HistorialPage() {
       const fecha = v.fecha ?? ''
       const matchD = !desde || fecha >= desde
       const matchH = !hasta || fecha <= hasta
+      const matchFP = !formaPago || v.forma_pago === formaPago
 
-      return matchQ && matchD && matchH
+      return matchQ && matchD && matchH && matchFP
     })
 
     setFiltradas(result)
     setPage(0)
-  }, [busqueda, desde, hasta, ventas])
+  }, [busqueda, desde, hasta, formaPago, ventas])
 
   const totalPages     = Math.ceil(filtradas.length / PER_PAGE)
   const paginadas      = filtradas.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const totalImporte   = filtradas.reduce((s, v) => s + (v.total    ?? 0), 0)
   const totalGanancia  = filtradas.reduce((s, v) => s + (v.ganancia ?? 0), 0)
-  const hayFiltro      = busqueda || desde || hasta
+  const totalItems     = filtradas.reduce((s, v) => s + (v.ventas_detalle ?? []).reduce((s2: number, d: any) => s2 + (d.cantidad ?? 0), 0), 0)
+  const hayFiltro      = busqueda || desde || hasta || formaPago
 
   return (
     <div>
@@ -156,12 +159,26 @@ export default function HistorialPage() {
             />
           </div>
 
+          {/* Forma de pago */}
+          <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+            <label style={{ fontSize:10, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Forma de pago</label>
+            <select
+              className="input"
+              value={formaPago}
+              onChange={e => setFormaPago(e.target.value)}
+              style={{ width:160 }}
+            >
+              <option value="">Todas</option>
+              {FORMAS_PAGO.map(fp => <option key={fp} value={fp}>{fp}</option>)}
+            </select>
+          </div>
+
           {/* Limpiar — solo visible si hay algo activo */}
           {hayFiltro && (
             <button
               className="btn-ghost"
               style={{ marginTop:18 }}
-              onClick={() => { setBusqueda(''); setDesde(''); setHasta('') }}
+              onClick={() => { setBusqueda(''); setDesde(''); setHasta(''); setFormaPago('') }}
             >
               ✕ Limpiar
             </button>
@@ -186,6 +203,11 @@ export default function HistorialPage() {
                 Hasta {hasta}
               </span>
             )}
+            {formaPago && (
+              <span style={{ fontSize:12, background:'rgba(201,168,76,0.12)', color:'var(--gold)', padding:'3px 10px', borderRadius:20 }}>
+                Pago: {formaPago}
+              </span>
+            )}
           </div>
         )}
 
@@ -204,7 +226,7 @@ export default function HistorialPage() {
         ) : (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <thead>
+              <thead className="grid-thead">
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
                   {[
                     { label:'#',          w:'auto' },
@@ -275,6 +297,19 @@ export default function HistorialPage() {
                   )
                 })}
               </tbody>
+              {filtradas.length > 0 && (
+                <tfoot>
+                  <tr style={{ borderTop:'2px solid var(--border-hover)', fontWeight:600 }}>
+                    <td colSpan={3} style={{ padding:'11px 14px', color:'var(--text-muted)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                      Totales ({filtradas.length})
+                    </td>
+                    <td style={{ padding:'11px 14px', textAlign:'center' }}>{totalItems}</td>
+                    <td style={{ padding:'11px 14px', fontVariantNumeric:'tabular-nums' }}>{fmt(totalImporte)}</td>
+                    <td style={{ padding:'11px 14px', fontVariantNumeric:'tabular-nums', color:'#5BAD7A' }}>{fmt(totalGanancia)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}

@@ -47,7 +47,7 @@ export default function GananciasPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
+      <div className="kpi-grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
         <KpiG label="Ganancia hoy"    valor={fmt(ganHoy)}    />
         <KpiG label="Ganancia semana" valor={fmt(ganSemana)} />
         <KpiG label="Ganancia mes"    valor={fmt(ganMes)}    />
@@ -69,7 +69,7 @@ export default function GananciasPage() {
         {loading ? <p style={{ color:'var(--text-muted)', fontSize:13 }}>Cargando...</p> : (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <thead>
+              <thead className="grid-thead">
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
                   {['Fecha','Nro. venta','Ítems','Ingreso','Costo','Ganancia','Margen'].map(h => (
                     <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', whiteSpace:'nowrap' }}>{h}</th>
