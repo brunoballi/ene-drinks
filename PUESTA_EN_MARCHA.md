@@ -29,21 +29,80 @@ Para **dar de baja** un admin: Supabase → Authentication → Users → borrar 
 
 ## 2. Configurar las URLs de autenticación
 
+> Hacé primero el [paso 2.bis](#2bis-poner-la-app-en-gestorautoflowicom) si todavía
+> no configuraste el dominio propio, así cargás las URLs definitivas de una sola vez.
+
 Supabase → **Authentication → URL Configuration**:
 
-- **Site URL**: `https://ene-drinks.vercel.app`
-- **Redirect URLs**: agregá estas dos entradas, **completas**:
-  - `https://ene-drinks.vercel.app/reset-password`
+- **Site URL**: `https://gestor.autoflowi.com`
+- **Redirect URLs**: agregá estas tres entradas, **completas**:
+  - `https://gestor.autoflowi.com/reset-password`
+  - `https://ene-drinks.vercel.app/reset-password` *(el dominio viejo, por las dudas)*
   - `http://localhost:3000/reset-password` *(para poder probar en local)*
 
 ⚠️ Tiene que ser la **dirección entera**, con el dominio incluido. Un valor como
 `https://reset-password` **no sirve**: ahí `reset-password` se interpreta como si
 fuera el nombre de un sitio web (como `google.com`), no como una página de tu app.
-Es la misma diferencia que entre escribir `ene-drinks.vercel.app/ganancias` y
+Es la misma diferencia que entre escribir `gestor.autoflowi.com/ganancias` y
 escribir solo `ganancias`.
 
 **Sin este paso el link de recuperar contraseña no funciona** — Supabase rechaza
 cualquier redirección a una URL que no esté en esa lista.
+
+---
+
+## 2.bis. Poner la app en gestor.autoflowi.com
+
+En vez de comprar un dominio nuevo, la app usa un subdominio de `autoflowi.com`,
+que ya es tuyo. Costo: **$0**.
+
+### Cómo está armado hoy
+
+`autoflowi.com` está **registrado en Hostinger** (los nameservers son
+`hermes.dns-parking.com` y `artemis.dns-parking.com`), pero apunta a Vercel con
+registros DNS: el `A` de la raíz va a `216.198.79.1` y el `www` va por `CNAME` a
+`cname.vercel-dns.com`.
+
+Traducido: **el dominio se administra en Hostinger, no en Vercel.** Por eso el
+subdominio nuevo hay que crearlo en los dos lados — se avisa en Vercel y se crea
+el registro en Hostinger.
+
+### Los pasos
+
+1. **Vercel** → proyecto `ene-drinks` → **Settings → Domains** → *Add Domain* →
+   escribí `gestor.autoflowi.com`.
+2. Vercel lo va a marcar en rojo como **"Invalid Configuration"** y te va a mostrar
+   el registro DNS que le falta. Es lo esperado, no está roto — todavía no existe
+   el registro.
+3. **Hostinger** → panel de `autoflowi.com` → **DNS / Nameservers** → *Add record*:
+
+   | Campo | Valor |
+   |---|---|
+   | Tipo | `CNAME` |
+   | Nombre / Host | `gestor` (solo eso, **no** `gestor.autoflowi.com`) |
+   | Apunta a / Target | `cname.vercel-dns.com` |
+   | TTL | el que venga por defecto |
+
+4. Volvé a Vercel y esperá. Suele tardar unos minutos; el TTL puede estirarlo hasta
+   un par de horas. Cuando Vercel lo verifica, pasa a **"Valid Configuration"** y
+   emite el certificado HTTPS solo. No hay que tocar nada más.
+5. Recién ahí hacé el **paso 2** con las URLs de `gestor.autoflowi.com`.
+
+> `ene-drinks.vercel.app` **sigue funcionando** después de esto. No se rompe nada:
+> quedan las dos direcciones sirviendo la misma app. Si en algún momento querés que
+> la vieja redirija a la nueva, se configura en Vercel → Domains.
+
+### Por qué este subdominio y no un dominio comprado
+
+Se evaluó comprar `flowigestor.com` o `enedrinks.com` (~$11.25/año cada uno en
+Vercel). Se descartó **por ahora**: el objetivo inmediato era sacar la app de
+`ene-drinks.vercel.app` para poder probar, y el subdominio lo resuelve gratis y
+sin esperar.
+
+No cierra ninguna puerta. Si más adelante comprás un dominio propio, se agrega en
+Vercel igual que este y se actualizan las URLs de Supabase.
+
+Ojo: los `.com.ar` **no se compran en Vercel**, van por NIC.ar.
 
 ---
 
@@ -64,88 +123,79 @@ va a apretar el botón y **el mail no le va a llegar**.
 La solución es contratar (gratis) un servicio que se dedique a mandar mails y
 enchufárselo a Supabase. Es cargar 4 datos en una pantalla, una sola vez.
 
-### Cómo se completa la pantalla de Supabase
+### Decisión tomada: se usa Gmail
 
-En Supabase → **Authentication → Emails → SMTP Settings** hay **dos bloques
-distintos**, y es fácil confundirlos:
+Se descartó Resend por ahora. Resend sin dominio propio solo entrega mails a la
+casilla del desarrollador (`onboarding@resend.dev`), así que **al cliente nunca le
+iba a llegar nada**. Comprar un dominio quedó para más adelante.
 
-**Bloque "SMTP provider settings"** — son los datos que te da Resend:
+Gmail manda desde tu casilla a cualquier destinatario, gratis, hasta ~500 mails
+por día. La contra es que el cliente ve tu dirección personal como remitente.
 
-| Campo | Valor |
-|---|---|
-| Host | `smtp.resend.com` |
-| Port number | `465` |
-| Username | `resend` |
-| Password | la API key que te dio Resend |
+> 🔑 **Pendiente de higiene:** la API key vieja de Resend quedó expuesta en un chat.
+> Aunque ya no se use, borrala desde el panel de Resend.
 
-**Bloque "Sender details"** — esto **NO** son datos de Resend, es quién figura
-como remitente del mail:
+### Configurar Gmail como SMTP
 
-| Campo | Valor |
-|---|---|
-| Sender email address | una **dirección de mail real** (ver abajo) |
-| Sender name | `Flowi Gestor` — es lo que ve el cliente en su bandeja |
+1. En tu cuenta de Google activá la **Verificación en 2 pasos** (es requisito, sin
+   esto no aparece la opción del paso 2).
+2. Andá a **Contraseñas de aplicación** (https://myaccount.google.com/apppasswords)
+   y generá una. Te da 16 caracteres, con espacios que **no** hay que copiar.
+3. En Supabase → **Authentication → Emails → SMTP Settings**, activá el toggle
+   *Enable Custom SMTP* y cargá:
 
-⚠️ **Error típico:** poner `smtp.resend.com` en "Sender email address".
-Ese campo pide un mail (`algo@algo.com`), no un servidor. Por eso Supabase lo
-marca en rojo con "Must be a valid email" y no te deja guardar.
-
-### Qué dirección poner como remitente
-
-Depende de si tenés un dominio propio verificado en Resend:
-
-- **Con dominio propio verificado** (ej. `enedrinks.com.ar`):
-  poné `noreply@enedrinks.com.ar`. Es la opción más profesional y le llega a
-  cualquiera.
-
-- **Sin dominio propio:** Resend te deja usar `onboarding@resend.dev`, **pero
-  solo entrega mails a la casilla con la que te registraste en Resend**
-  (`ofiprof2025@gmail.com`). Sirve para que vos pruebes, pero **al cliente no le
-  va a llegar nada**.
-
-### Verificar un dominio en Resend
-
-Es el paso que habilita que le llegue el mail al cliente.
-
-1. Necesitás un dominio propio. Si no tenés, se compra en NIC.ar, Namecheap,
-   Google Domains o similar (unos 15 USD/año).
-2. En Resend → **Dominios** → **Add Domain** → escribí tu dominio.
-3. Resend te muestra 3 registros DNS (uno `MX` y dos `TXT`: DKIM y SPF).
-4. Entrá al panel donde compraste el dominio y cargá esos 3 registros tal cual.
-5. Volvé a Resend y apretá **Verify**. Puede tardar de minutos a unas horas.
-6. Cuando quede en verde, ya podés usar `noreply@tudominio.com` como
-   "Sender email address" en Supabase.
-
-> Si el dominio lo comprás en el mismo Vercel, también podés apuntarlo a la app
-> y de paso el sistema deja de vivir en `ene-drinks.vercel.app`.
-
-### Alternativa sin comprar dominio: usar Gmail
-
-Si no tenés dominio y no querés comprar uno, se puede usar el SMTP de Gmail.
-Manda desde tu casilla a cualquier destinatario, gratis, hasta ~500 mails por día.
-
-1. En tu cuenta de Google activá la **Verificación en 2 pasos** (es requisito).
-2. Andá a **Contraseñas de aplicación** y generá una. Te da 16 caracteres.
-3. Cargá en Supabase:
+**Bloque "SMTP provider settings"**
 
 | Campo | Valor |
 |---|---|
 | Host | `smtp.gmail.com` |
 | Port number | `465` |
 | Username | `ofiprof2025@gmail.com` |
-| Password | la contraseña de aplicación de 16 caracteres |
+| Password | la contraseña de aplicación de 16 caracteres (sin espacios) |
+
+**Bloque "Sender details"** — esto es quién figura como remitente, no son datos
+del servidor:
+
+| Campo | Valor |
+|---|---|
 | Sender email address | `ofiprof2025@gmail.com` |
 | Sender name | `Flowi Gestor` |
 
-Contra: los mails salen desde tu Gmail personal, así que el cliente ve esa
-dirección como remitente.
+⚠️ **Error típico:** poner `smtp.gmail.com` en "Sender email address". Ese campo
+pide un mail (`algo@algo.com`), no un servidor. Supabase lo marca en rojo con
+"Must be a valid email" y no te deja guardar.
 
-> Mientras no configures esto, el botón igual anda — pero el mail puede tardar,
-> caer en spam o directamente no salir por el límite de envío.
->
-> Si querés dejarlo para más adelante, no pasa nada: vos podés cambiarle la
-> contraseña al cliente cuando lo necesite, corriendo de nuevo el script del paso 1.
+⚠️ El **Username** y el **Sender email address** tienen que ser la **misma**
+casilla. Gmail rechaza el envío si el remitente no coincide con la cuenta que
+autentica, y el síntoma es un error 500 al pedir el reset.
 
+4. Guardá y probá el flujo completo (paso 6).
+
+### Cómo saber si quedó bien
+
+Pedí un reset de contraseña con **un email que exista de verdad** en
+Authentication → Users:
+
+- **Llega el mail** → listo.
+- **Error 500 "Error sending recovery email"** → las credenciales SMTP están mal.
+  Revisá que la contraseña de aplicación esté sin espacios y que Username y Sender
+  coincidan.
+- **Responde 200 y no llega nada** → ese email no existe como usuario. Supabase
+  contesta igual exista o no, a propósito, para que nadie pueda averiguar qué
+  cuentas están registradas. Fijate que esté bien escrito.
+
+### Más adelante: mandar desde noreply@autoflowi.com
+
+No hace falta comprar nada. Como `autoflowi.com` ya es tuyo (ver paso 2.bis),
+podés verificarlo en Resend y mandar los mails desde `noreply@autoflowi.com` en
+vez de tu Gmail personal. Es el upgrade natural cuando quieras que el remitente se
+vea profesional.
+
+El procedimiento sería: Resend → **Add Domain** → `autoflowi.com` → cargar los 3
+registros DNS que te muestra (un `MX` y dos `TXT`, DKIM y SPF) **en Hostinger**,
+que es donde vive el DNS → **Verify**.
+Después en Supabase se cambian los 4 campos de SMTP por los de Resend
+(`smtp.resend.com`, puerto `465`, usuario `resend`, password = API key).
 ---
 
 ## 3.bis. Crear la tabla del negocio
@@ -186,10 +236,38 @@ solo es una puerta visual hasta ese momento.
 
 ## 6. Probar
 
-1. Entrá a `https://ene-drinks.vercel.app` → te tiene que mandar al login.
-2. Ingresá con el usuario que creaste → pantalla de bienvenida → sistema.
-3. Configuración → **Datos del negocio** → cambiá el nombre y subí el logo.
-4. Cerrá sesión → **¿Olvidaste tu contraseña?** → probá el flujo completo.
+Este checklist nunca se corrió entero en producción con sesión iniciada. Conviene
+hacerlo de una sentada y anotar qué falla.
+
+**Acceso**
+
+1. Entrá a `https://gestor.autoflowi.com` → te tiene que mandar al login.
+2. Probá una URL interna sin sesión, ej. `/ventas` → tiene que rebotar al login.
+3. Ingresá con el usuario que creaste → pantalla de bienvenida → sistema.
+
+**Negocio**
+
+4. Configuración → **Datos del negocio** → cambiá el nombre y subí el logo.
+5. Recargá y confirmá que el logo y el nombre nuevo aparecen en la barra.
+
+**Stock (lo más importante — los triggers nunca se probaron en real)**
+
+6. Anotá el stock actual de un producto cualquiera.
+7. Cargá una **venta** con ese producto → el stock tiene que **bajar** por la
+   cantidad vendida.
+8. **Borrá** esa venta → el stock tiene que **volver** al número del punto 6.
+9. Cargá una **compra** de ese producto → el stock tiene que **subir**.
+10. **Borrá** la compra → el stock vuelve a bajar y la deuda al proveedor se
+    descuenta.
+11. Bajá un producto por debajo de su mínimo → tiene que aparecer el **popup de
+    stock bajo**.
+
+**Contraseña**
+
+12. Cerrá sesión → **¿Olvidaste tu contraseña?** → poné un email que exista de
+    verdad en Authentication → Users → revisá que llegue el mail (mirá spam).
+13. Abrí el enlace **en el mismo navegador** → cambiá la contraseña → entrá con la
+    nueva.
 
 ---
 
