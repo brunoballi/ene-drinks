@@ -1,24 +1,29 @@
-// Diagnóstico de credenciales SMTP de Gmail.
+// Diagnóstico de credenciales SMTP.
 //
-// Se conecta a Gmail igual que lo hace Supabase e intenta autenticarse, para
-// ver el mensaje de error real que Supabase esconde detrás de
+// Se conecta al servidor igual que lo hace Supabase e intenta autenticarse,
+// para ver el mensaje de error real que Supabase esconde detrás de
 // "Error sending recovery email".
 //
-// Uso (PowerShell, parado en Enedrinks/bebidas):
+// Uso con RESEND (el proveedor que usamos), en PowerShell, parado en
+// Enedrinks/bebidas:
+//
+//   $env:SMTP_HOST = 'smtp.resend.com'
+//   $env:SMTP_USER = 'resend'
+//   $env:SMTP_PASS = 'tu-api-key-de-resend'
+//   node scripts/test-smtp.mjs
+//
+// Uso con GMAIL (por defecto, quedó de cuando probamos ese camino):
 //
 //   $env:SMTP_PASS = 'tucontraseñadeaplicacion'
 //   node scripts/test-smtp.mjs
 //
 // La contraseña se lee de una variable de entorno: no se escribe en ningún
 // archivo ni se imprime en pantalla. Cuando termines, cerrá la terminal.
-//
-// Opcional, si la casilla no es ofiprof2025@gmail.com:
-//   $env:SMTP_USER = 'otra@gmail.com'
 
 import net from 'node:net'
 import tls from 'node:tls'
 
-const HOST = 'smtp.gmail.com'
+const HOST = process.env.SMTP_HOST || 'smtp.gmail.com'
 const USER = process.env.SMTP_USER || 'ofiprof2025@gmail.com'
 const RAW  = process.env.SMTP_PASS || ''
 const TIMEOUT = 15000
@@ -124,6 +129,10 @@ async function probar587() {
 
 function interpretar(respuesta) {
   if (/^235/.test(respuesta)) return { ok: true, texto: 'Autenticación aceptada.' }
+  if (/^454|Too many login attempts/i.test(respuesta))
+    return { ok: false, texto: 'Bloqueo TEMPORAL por intentos repetidos, no es la contraseña. Es lo que le pasó a Gmail con Supabase: rechaza los logins desde IPs de datacenter. Esperá un rato, y si es Gmail, mejor pasate a Resend.' }
+  if (/Invalid.*API key|invalid_api_key|Authentication credentials invalid/i.test(respuesta))
+    return { ok: false, texto: 'Resend rechazó la API key. Fijate que esté completa (empieza con re_), que la hayas copiado entera y que el Username sea literalmente la palabra "resend".' }
   if (/534.*5\.7\.9|Application-specific password required/i.test(respuesta))
     return { ok: false, texto: 'Estás usando la contraseña normal de Gmail. Hace falta una contraseña de APLICACIÓN (16 caracteres), que se genera en myaccount.google.com/apppasswords con la verificación en 2 pasos activada.' }
   if (/535.*5\.7\.8|Username and Password not accepted/i.test(respuesta))
@@ -133,10 +142,21 @@ function interpretar(respuesta) {
   return { ok: false, texto: 'Gmail rechazó la autenticación. El texto de arriba es la razón exacta.' }
 }
 
+const esGmail = /gmail/i.test(HOST)
+
 console.log('')
-console.log('  Casilla:', USER)
-console.log('  Largo de la contraseña:', PASS.length, 'caracteres', PASS.length === 16 ? '(correcto)' : '(ojo: una contraseña de aplicación tiene 16)')
-if (teniaEspacios) console.log('  ⚠ La contraseña tenía espacios. Los saqué para esta prueba, pero en Supabase hay que cargarla SIN espacios.')
+console.log('  Servidor:', HOST)
+console.log('  Usuario: ', USER)
+if (esGmail) {
+  console.log('  Largo de la contraseña:', PASS.length, 'caracteres', PASS.length === 16 ? '(correcto)' : '(ojo: una contraseña de aplicación tiene 16)')
+  if (teniaEspacios) console.log('  ⚠ La contraseña tenía espacios. Los saqué para esta prueba, pero en Supabase hay que cargarla SIN espacios.')
+} else {
+  console.log('  Largo de la clave: ', PASS.length, 'caracteres')
+  if (/resend/i.test(HOST) && !PASS.startsWith('re_'))
+    console.log('  ⚠ Las API keys de Resend empiezan con "re_". Fijate que hayas copiado la clave entera.')
+  if (/resend/i.test(HOST) && USER !== 'resend')
+    console.log('  ⚠ Con Resend el usuario tiene que ser literalmente "resend", no tu email.')
+}
 console.log('')
 
 for (const [puerto, fn] of [['465 (TLS directo)', probar465], ['587 (STARTTLS)', probar587]]) {
@@ -145,7 +165,7 @@ for (const [puerto, fn] of [['465 (TLS directo)', probar465], ['587 (STARTTLS)',
     const respuesta = await fn()
     const { ok, texto } = interpretar(respuesta)
     console.log(ok ? 'OK' : 'FALLA')
-    console.log('    Gmail respondió:', respuesta.split('\n').pop().trim())
+    console.log(`    ${HOST} respondió:`, respuesta.split('\n').pop().trim())
     console.log('    →', texto)
   } catch (e) {
     console.log('ERROR')

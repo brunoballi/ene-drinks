@@ -129,53 +129,99 @@ va a apretar el botón y **el mail no le va a llegar**.
 La solución es contratar (gratis) un servicio que se dedique a mandar mails y
 enchufárselo a Supabase. Es cargar 4 datos en una pantalla, una sola vez.
 
-### Decisión tomada: se usa Gmail
+### Decisión tomada: Resend con autoflowi.com
 
-Se descartó Resend por ahora. Resend sin dominio propio solo entrega mails a la
-casilla del desarrollador (`onboarding@resend.dev`), así que **al cliente nunca le
-iba a llegar nada**. Comprar un dominio quedó para más adelante.
+**Se probó Gmail y no funcionó.** Los logs de auth de Supabase mostraron esto:
 
-Gmail manda desde tu casilla a cualquier destinatario, gratis, hasta ~500 mails
-por día. La contra es que el cliente ve tu dirección personal como remitente.
+```
+454 4.7.0 Too many login attempts, please try again later
+```
 
-> 🔑 **Pendiente de higiene:** la API key vieja de Resend quedó expuesta en un chat.
-> Aunque ya no se use, borrala desde el panel de Resend.
+No era la contraseña. Gmail **bloquea el login** porque Supabase se conecta desde
+IPs de datacenter que Google no reconoce y marca como sospechosas. Es un error
+temporal (`4.x.x`), pero vuelve a aparecer: cada reintento profundiza el bloqueo.
+Gmail + Supabase es frágil por diseño, no por algo mal configurado.
 
-### Configurar Gmail como SMTP
+Resend no tiene ese problema — está hecho para mandar mail desde servidores.
 
-1. En tu cuenta de Google activá la **Verificación en 2 pasos** (es requisito, sin
-   esto no aparece la opción del paso 2).
-2. Andá a **Contraseñas de aplicación** (https://myaccount.google.com/apppasswords)
-   y generá una. Te da 16 caracteres, con espacios que **no** hay que copiar.
-3. En Supabase → **Authentication → Emails → SMTP Settings**, activá el toggle
+La razón por la que en su momento habíamos descartado Resend (hacía falta comprar
+un dominio) **ya no existe**: `autoflowi.com` es tuyo. Verificándolo en Resend, los
+mails salen desde `noreply@autoflowi.com`, le llegan a cualquiera, y el cliente ve
+un remitente profesional en vez de un Gmail personal. Costo: **$0**.
+
+> 🔑 **Antes de empezar:** la API key vieja de Resend quedó expuesta en un chat.
+> Borrala desde el panel de Resend y generá una nueva.
+
+### Paso A — Verificar autoflowi.com en Resend
+
+El DNS de `autoflowi.com` está **limpio**: no tiene MX, ni SPF, ni DMARC
+(verificado el 2026-08-23). Así que los registros de Resend entran sin pisar nada.
+
+1. Entrá a Resend → **Domains** → **Add Domain** → escribí `autoflowi.com`.
+2. Elegí la región más cercana (`us-east-1` sirve).
+3. Resend te muestra **3 registros DNS**. No los inventes ni los copies de acá:
+   usá los que te muestra a vos, porque el DKIM es único de tu cuenta. Van a tener
+   esta forma:
+
+   | Tipo | Para qué |
+   |---|---|
+   | `MX` | ruta de rebotes (bounces) |
+   | `TXT` | SPF — autoriza a Resend a mandar en tu nombre |
+   | `TXT` | DKIM — la firma criptográfica, es la clave larga |
+
+4. Cargalos en **Hostinger** → panel de `autoflowi.com` → **DNS / Nameservers**.
+
+   ⚠️ **La misma trampa que con el subdominio:** en el campo **Name** de Hostinger
+   va **solo la parte de adelante**, sin `.autoflowi.com`. Si Resend te dice que el
+   registro va en `resend._domainkey.autoflowi.com`, en Hostinger el Name es
+   `resend._domainkey` y nada más. Si pegás el nombre completo, te queda apuntando
+   a `resend._domainkey.autoflowi.com.autoflowi.com` y no verifica nunca.
+
+   Para el registro de la raíz, Hostinger usa `@` como Name.
+
+5. Volvé a Resend y apretá **Verify**. Suele tardar minutos; puede estirarse a
+   un par de horas según el TTL.
+
+### Paso B — Cargar Resend en Supabase
+
+1. En Resend → **API Keys** → **Create API Key**. Permiso de envío alcanza.
+   Copiala apenas la genera: **no se vuelve a mostrar**.
+2. En Supabase → **Authentication → Emails → SMTP Settings**, activá el toggle
    *Enable Custom SMTP* y cargá:
 
 **Bloque "SMTP provider settings"**
 
 | Campo | Valor |
 |---|---|
-| Host | `smtp.gmail.com` |
+| Host | `smtp.resend.com` |
 | Port number | `465` |
-| Username | `ofiprof2025@gmail.com` |
-| Password | la contraseña de aplicación de 16 caracteres (sin espacios) |
+| Username | `resend` |
+| Password | la API key que acabás de generar |
+
+⚠️ El Username es literalmente la palabra `resend`, igual para todo el mundo. No
+es tu email ni tu nombre de usuario de Resend.
 
 **Bloque "Sender details"** — esto es quién figura como remitente, no son datos
 del servidor:
 
 | Campo | Valor |
 |---|---|
-| Sender email address | `ofiprof2025@gmail.com` |
+| Sender email address | `noreply@autoflowi.com` |
 | Sender name | `Flowi Gestor` |
 
-⚠️ **Error típico:** poner `smtp.gmail.com` en "Sender email address". Ese campo
+⚠️ **Error típico:** poner `smtp.resend.com` en "Sender email address". Ese campo
 pide un mail (`algo@algo.com`), no un servidor. Supabase lo marca en rojo con
 "Must be a valid email" y no te deja guardar.
 
-⚠️ El **Username** y el **Sender email address** tienen que ser la **misma**
-casilla. Gmail rechaza el envío si el remitente no coincide con la cuenta que
-autentica, y el síntoma es un error 500 al pedir el reset.
+⚠️ El dominio del Sender **tiene que ser el que verificaste**. Si Resend todavía no
+te puso `autoflowi.com` en verde, cualquier envío desde `noreply@autoflowi.com` va
+a fallar con un `403`.
 
-4. Guardá y probá el flujo completo (paso 6).
+3. Guardá y probá el flujo completo (paso 6).
+
+> No hace falta que exista una casilla `noreply@autoflowi.com`. Es una dirección de
+> solo salida: sirve para mandar, nadie la lee. Si el cliente le responde, el mail
+> se pierde — por eso se llama así.
 
 ### Cómo saber si quedó bien
 
@@ -183,35 +229,45 @@ Pedí un reset de contraseña con **un email que exista de verdad** en
 Authentication → Users:
 
 - **Llega el mail** → listo.
-- **Error 500 "Error sending recovery email"** → las credenciales SMTP están mal.
-  Supabase no te dice por qué. Para sacarle el motivo real a Gmail, corré:
+- **Error 500 "Error sending recovery email"** → algo del SMTP está mal, pero
+  Supabase no te dice qué. Dos formas de averiguarlo:
+
+  **La rápida**, desde tu máquina:
 
   ```powershell
-  $env:SMTP_PASS = 'tucontraseñadeaplicacion'
+  $env:SMTP_HOST = 'smtp.resend.com'
+  $env:SMTP_USER = 'resend'
+  $env:SMTP_PASS = 'tu-api-key-de-resend'
   node scripts/test-smtp.mjs
   ```
 
-  Se conecta a Gmail igual que Supabase y te devuelve la respuesta cruda del
-  servidor: si la contraseña está mal (`535`), si estás usando la contraseña
-  normal en vez de una de aplicación (`534`), o si el problema es el puerto.
-  La contraseña se lee de una variable de entorno, no queda escrita en ningún
-  archivo.
+  Se conecta igual que Supabase y te devuelve la respuesta cruda del servidor,
+  traducida. La clave se lee de una variable de entorno, no queda escrita en
+  ningún archivo.
+
+  **La definitiva**, Supabase → **Logs → Auth Logs**: ahí figura el error tal cual
+  lo devolvió el proveedor. Fue así como descubrimos el `454` de Gmail. Si el visor
+  de logs se cae (pasa seguido), usá la vía rápida.
+
+  Errores típicos con Resend:
+
+  | Respuesta | Qué significa |
+  |---|---|
+  | `535 Authentication credentials invalid` | la API key está mal o incompleta |
+  | `403` al enviar | el dominio todavía no está verificado en Resend |
+  | `454` | bloqueo temporal por reintentos — esperá |
 - **Responde 200 y no llega nada** → ese email no existe como usuario. Supabase
   contesta igual exista o no, a propósito, para que nadie pueda averiguar qué
   cuentas están registradas. Fijate que esté bien escrito.
 
-### Más adelante: mandar desde noreply@autoflowi.com
+### Más adelante: DMARC
 
-No hace falta comprar nada. Como `autoflowi.com` ya es tuyo (ver paso 2.bis),
-podés verificarlo en Resend y mandar los mails desde `noreply@autoflowi.com` en
-vez de tu Gmail personal. Es el upgrade natural cuando quieras que el remitente se
-vea profesional.
+Con SPF y DKIM (los que carga Resend) ya alcanza para que el mail entre bien. Si
+en algún momento querés apretar más la seguridad del dominio, se agrega un
+`TXT` en `_dmarc.autoflowi.com` con `v=DMARC1; p=none; rua=mailto:tu@mail.com`.
+Empezá siempre con `p=none`, que solo reporta y no rechaza nada.
 
-El procedimiento sería: Resend → **Add Domain** → `autoflowi.com` → cargar los 3
-registros DNS que te muestra (un `MX` y dos `TXT`, DKIM y SPF) **en Hostinger**,
-que es donde vive el DNS → **Verify**.
-Después en Supabase se cambian los 4 campos de SMTP por los de Resend
-(`smtp.resend.com`, puerto `465`, usuario `resend`, password = API key).
+No es urgente ni bloquea nada.
 
 ---
 
