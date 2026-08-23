@@ -23,6 +23,23 @@ antes de subir el código con login, la app en producción se queda sin poder le
 
 Ambos son idempotentes: se pueden volver a correr sin problema.
 
+**Verificado en la base real el 2026-08-23** (vía MCP de Supabase): los 4 triggers
+de stock existen y están activos — `trg_descontar_stock` (BEFORE INSERT) y
+`trg_restaurar_stock` (AFTER DELETE) en `ventas_detalle`, `trg_aumentar_stock`
+(AFTER INSERT) y `trg_revertir_stock_compra` (AFTER DELETE) en `compras`. Las 4
+vistas (`v_stock`, `v_ganancias`, `v_resumen_diario`, `v_ventas_completas`) tienen
+`security_invoker=on`.
+
+## Higiene pendiente
+
+| Script | Qué hace | Estado |
+|---|---|---|
+| `fix_search_path_funciones.sql` | Fija el `search_path` de las 7 funciones. Prioridad baja: son todas SECURITY INVOKER, así que el warning del linter no implica riesgo de escalada. | ⬜ sin aplicar |
+
+También queda pendiente, y es un solo botón: Supabase → Authentication → Policies →
+activar **Leaked Password Protection** (chequea las contraseñas contra
+HaveIBeenPwned al crearlas).
+
 ## Mantenimiento
 
 | Script | Para qué |
