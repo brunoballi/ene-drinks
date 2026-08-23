@@ -106,9 +106,15 @@ Ojo: los `.com.ar` **no se compran en Vercel**, van por NIC.ar.
 
 ---
 
-## 3. Configurar el envío de mails (SMTP propio)
+## 3. Configurar el envío de mails (SMTP propio) — *opcional*
 
-⚠️ **Esto es lo más importante para que la recuperación de contraseña sirva de verdad.**
+> **No es obligatorio para que el sistema funcione.** Si el cliente se olvida la
+> contraseña, se la cambiás vos en 30 segundos con el
+> [paso 3.ter](#3ter-cambiarle-la-contraseña-al-cliente-sin-mail). Con 2 usuarios,
+> esa vía alcanza y sobra.
+>
+> El SMTP sirve para que el cliente se recupere solo, sin llamarte. Es comodidad,
+> no un requisito. Dejalo para cuando tengas ganas.
 
 ### En criollo, qué es esto
 
@@ -178,8 +184,18 @@ Authentication → Users:
 
 - **Llega el mail** → listo.
 - **Error 500 "Error sending recovery email"** → las credenciales SMTP están mal.
-  Revisá que la contraseña de aplicación esté sin espacios y que Username y Sender
-  coincidan.
+  Supabase no te dice por qué. Para sacarle el motivo real a Gmail, corré:
+
+  ```powershell
+  $env:SMTP_PASS = 'tucontraseñadeaplicacion'
+  node scripts/test-smtp.mjs
+  ```
+
+  Se conecta a Gmail igual que Supabase y te devuelve la respuesta cruda del
+  servidor: si la contraseña está mal (`535`), si estás usando la contraseña
+  normal en vez de una de aplicación (`534`), o si el problema es el puerto.
+  La contraseña se lee de una variable de entorno, no queda escrita en ningún
+  archivo.
 - **Responde 200 y no llega nada** → ese email no existe como usuario. Supabase
   contesta igual exista o no, a propósito, para que nadie pueda averiguar qué
   cuentas están registradas. Fijate que esté bien escrito.
@@ -196,6 +212,33 @@ registros DNS que te muestra (un `MX` y dos `TXT`, DKIM y SPF) **en Hostinger**,
 que es donde vive el DNS → **Verify**.
 Después en Supabase se cambian los 4 campos de SMTP por los de Resend
 (`smtp.resend.com`, puerto `465`, usuario `resend`, password = API key).
+
+---
+
+## 3.ter. Cambiarle la contraseña al cliente sin mail
+
+Este es el camino que **siempre funciona**, sin SMTP, sin Gmail y sin dominio.
+Si el cliente te llama porque no puede entrar, corré esto y en 30 segundos está
+adentro.
+
+```bash
+node scripts/cambiar-password.mjs
+```
+
+Te va a pedir:
+
+1. La **service role key** (Supabase → Project Settings → API → `service_role`).
+   No es la anon key.
+2. El **email** del usuario. Antes te muestra la lista de los que existen, así que
+   no hace falta que te acuerdes.
+3. La **contraseña nueva**.
+
+Listo. El cliente entra con esa. Si se la dictaste por teléfono, decile que la
+cambie desde el sistema.
+
+> Diferencia con `create-admins.mjs`: aquel pide los dos admins de una y sirve
+> para el alta inicial. Este toca un solo usuario y es el de uso diario.
+
 ---
 
 ## 3.bis. Crear la tabla del negocio
