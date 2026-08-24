@@ -270,14 +270,38 @@ Authentication → Users:
   contesta igual exista o no, a propósito, para que nadie pueda averiguar qué
   cuentas están registradas. Fijate que esté bien escrito.
 
-### Más adelante: DMARC
+### Si el mail cae en spam
 
-Con SPF y DKIM (los que carga Resend) ya alcanza para que el mail entre bien. Si
-en algún momento querés apretar más la seguridad del dominio, se agrega un
-`TXT` en `_dmarc.autoflowi.com` con `v=DMARC1; p=none; rua=mailto:tu@mail.com`.
-Empezá siempre con `p=none`, que solo reporta y no rechaza nada.
+Pasó en la primera prueba: llegó, pero a spam y con el cartel rojo de Gmail
+"Este mensaje podría ser peligroso". Eso no es un error de configuración — el mail
+salió bien. Es el filtro de Gmail desconfiando. Tres causas, en orden de peso:
 
-No es urgente ni bloquea nada.
+**1. La plantilla por defecto de Supabase parece phishing.** Trae dos renglones
+("Reset Password / Follow this link") y un enlace. Remitente desconocido + casi
+nada de texto + un link es exactamente el patrón que buscan los filtros.
+
+→ **Arreglo:** pegá [`emails/recuperar-password.html`](./emails/recuperar-password.html)
+en Supabase → Authentication → Emails → **Templates** → *Reset Password*. Explica
+quién manda, por qué, y qué hacer si no lo pediste. Es el cambio de mayor impacto.
+
+**2. Falta el DMARC.** Lo salteamos porque Resend lo marca opcional, pero Gmail lo
+mira. Agregá en Hostinger:
+
+| Tipo | Name | Value |
+|---|---|---|
+| `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:brunoballinari@gmail.com` |
+
+`p=none` solo reporta, no rechaza nada. Es seguro de poner.
+
+**3. El dominio es nuevo y no tiene reputación.** `autoflowi.com` nunca mandó un
+mail antes. Esto se cura solo con el tiempo y con envíos que nadie marque como
+spam. Ayuda que en Gmail le des **"No es spam"** y **"Parece seguro"** al mail que
+te llegó.
+
+> Queda una causa de fondo que no se puede arreglar en el plan gratis: el mail sale
+> de `autoflowi.com` pero el enlace apunta a `...supabase.co`. Esa diferencia entre
+> remitente y destino del link es señal de phishing para cualquier filtro. Se
+> resuelve con el *custom auth domain* de Supabase, que es de plan pago.
 
 ---
 
