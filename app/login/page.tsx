@@ -21,6 +21,24 @@ export default function LoginPage() {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search)
     const hash  = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+
+    // Rescate del flujo de recuperación.
+    //
+    // Si el enlace del mail no trae un redirect_to que Supabase acepte, la
+    // redirección cae en la raíz del sitio y el middleware la manda acá, al
+    // login — con el token todavía válido colgando de la URL. En vez de
+    // perderlo, lo reenviamos a la pantalla que corresponde.
+    //
+    // El token viaja en el fragmento (#access_token=...) o como ?code=. El
+    // fragmento sobrevive a las redirecciones porque el navegador lo conserva.
+    const vieneConToken =
+      (hash.get('access_token') && hash.get('type') === 'recovery') ||
+      !!query.get('code')
+    if (vieneConToken) {
+      window.location.replace('/reset-password' + window.location.search + window.location.hash)
+      return
+    }
+
     const code  = query.get('error_code') || hash.get('error_code')
     const desc  = query.get('error_description') || hash.get('error_description')
     if (!code && !desc) return
