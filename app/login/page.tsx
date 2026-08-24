@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
   const [aviso, setAviso]       = useState<string | null>(null)
+  const [avisoOk, setAvisoOk]   = useState(false)
 
   // Cuando el enlace del mail de recuperación falla, Supabase redirige acá con
   // el motivo en la URL. Sin esto el usuario cae en un login pelado, sin
@@ -36,6 +37,13 @@ export default function LoginPage() {
       !!query.get('code')
     if (vieneConToken) {
       window.location.replace('/reset-password' + window.location.search + window.location.hash)
+      return
+    }
+
+    // Vuelta desde el cambio de contraseña.
+    if (query.get('cambiada') === '1') {
+      setAvisoOk(true)
+      setAviso('Listo, tu contraseña quedó cambiada. Ingresá con la nueva.')
       return
     }
 
@@ -75,7 +83,7 @@ export default function LoginPage() {
         </div>
 
         {aviso && (
-          <div role="status" style={{ background: 'rgba(214,158,46,0.10)', border: '1px solid rgba(214,158,46,0.35)', borderRadius: 8, padding: '12px 14px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          <div role="status" style={{ background: avisoOk ? 'rgba(91,173,122,0.10)' : 'rgba(214,158,46,0.10)', border: `1px solid ${avisoOk ? 'rgba(91,173,122,0.35)' : 'rgba(214,158,46,0.35)'}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-secondary)', marginBottom: 20 }}>
             {aviso}
           </div>
         )}

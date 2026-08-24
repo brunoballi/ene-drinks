@@ -55,8 +55,15 @@ export default function ResetPasswordPage() {
     const { error } = await sb.auth.updateUser({ password })
     setSaving(false)
     if (error) { toast.error(error.message ?? 'No se pudo cambiar la contraseña'); return }
-    toast.success('Contraseña actualizada')
-    router.push('/bienvenida')
+
+    // Cerramos la sesión que abrió el enlace del mail y devolvemos al login.
+    //
+    // El enlace de recuperación deja una sesión iniciada, así que se podría
+    // entrar directo al sistema. Preferimos no hacerlo: que la persona use la
+    // contraseña nueva una vez confirma que quedó bien guardada y que se la
+    // acuerda, en vez de descubrir el problema recién en el próximo ingreso.
+    await sb.auth.signOut()
+    router.push('/login?cambiada=1')
     router.refresh()
   }
 
