@@ -159,15 +159,25 @@ El DNS de `autoflowi.com` está **limpio**: no tiene MX, ni SPF, ni DMARC
 
 1. Entrá a Resend → **Domains** → **Add Domain** → escribí `autoflowi.com`.
 2. Elegí la región más cercana (`us-east-1` sirve).
-3. Resend te muestra **3 registros DNS**. No los inventes ni los copies de acá:
-   usá los que te muestra a vos, porque el DKIM es único de tu cuenta. Van a tener
-   esta forma:
+3. Resend te muestra **3 registros DNS**:
 
-   | Tipo | Para qué |
-   |---|---|
-   | `MX` | ruta de rebotes (bounces) |
-   | `TXT` | SPF — autoriza a Resend a mandar en tu nombre |
-   | `TXT` | DKIM — la firma criptográfica, es la clave larga |
+   | Tipo | Name | Para qué |
+   |---|---|---|
+   | `TXT` | `resend._domainkey` | DKIM — la clave larga, única de tu cuenta |
+   | `CNAME` | `send` | envío |
+   | `CNAME` | `rsend` | envío |
+
+   Hay un cuarto de `DMARC` marcado como opcional: se puede saltear.
+
+   ⚠️ **Resend ya no usa Amazon SES.** Si encontrás documentación (vieja) que habla
+   de un `MX` a `feedback-smtp.<región>.amazonses.com` y un `TXT` con
+   `v=spf1 include:amazonses.com`, está desactualizada. Los registros de hoy son
+   dos `CNAME` que apuntan a `forge.rmta.net`. Copiá siempre lo que muestra tu
+   pantalla de Resend.
+
+   ⚠️ Un `CNAME` **no puede convivir** con ningún otro registro en el mismo nombre.
+   Si en `send` tenés un `MX` o un `TXT` de una configuración anterior, hay que
+   borrarlos antes.
 
 4. Cargalos en **Hostinger** → panel de `autoflowi.com` → **DNS / Nameservers**.
 
