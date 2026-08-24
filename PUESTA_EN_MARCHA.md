@@ -49,6 +49,30 @@ escribir solo `ganancias`.
 **Sin este paso el link de recuperar contraseña no funciona** — Supabase rechaza
 cualquier redirección a una URL que no esté en esa lista.
 
+### La trampa que nos costó una noche
+
+Si la Redirect URL no está **guardada**, Supabase **no da ningún error**: arma el
+mail con el Site URL pelado y listo. El enlace llega, el token es válido, todo
+parece bien — pero te deja en la raíz del sitio, que rebota al login.
+
+Peor todavía: las dos puntas validan distinto.
+
+| Endpoint | Cuándo actúa | Qué valida |
+|---|---|---|
+| `/recover` | al **armar** el mail | estricto: exige la URL en la lista |
+| `/verify` | al **clickear** el enlace | permisivo: acepta cualquier ruta del dominio |
+
+Por eso probar el enlace "a mano" contra `/verify` puede dar bien mientras el mail
+real sigue saliendo mal. **La prueba que vale es mirar el mail enviado**, no el
+comportamiento de `/verify`.
+
+Se puede ver el mail real en Resend → **Emails** → abrir el último. Fijate que el
+enlace tenga `redirect_to=...%2Freset-password` al final. Si solo dice
+`redirect_to=https://gestor.autoflowi.com`, la lista blanca no quedó guardada.
+
+> La app igual se defiende: si el token cae en `/login`, la pantalla lo detecta y
+> lo reenvía a `/reset-password`. Pero conviene arreglar la lista igual.
+
 ---
 
 ## 2.bis. Poner la app en gestor.autoflowi.com
