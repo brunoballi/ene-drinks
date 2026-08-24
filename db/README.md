@@ -30,14 +30,38 @@ de stock existen y están activos — `trg_descontar_stock` (BEFORE INSERT) y
 vistas (`v_stock`, `v_ganancias`, `v_resumen_diario`, `v_ventas_completas`) tienen
 `security_invoker=on`.
 
-## Higiene pendiente
+### Prueba funcional de los triggers de venta
+
+Corrida el 2026-08-24 contra la base de producción, dentro de una transacción con
+`ROLLBACK` (no quedó ningún dato). Producto de prueba: 10 sueltas + 5 cajas de 6 =
+**40 unidades**.
+
+| Paso | stock_un | stock_caja | Total |
+|---|---|---|---|
+| inicial | 10 | 5 | 40 |
+| vendí 2 cajas | 10 | 3 | 28 |
+| borré la venta | 10 | **5** | **40** ✅ |
+| vendí 4 unidades | 6 | 5 | 36 |
+| borré la venta | **10** | **5** | **40** ✅ |
+| vendí 13 unidades | 3 | 4 | 27 |
+| borré la venta | 16 | 4 | **40** ✅ |
+
+Los tres casos devuelven el stock. El último es el interesante: como no alcanzaban
+las sueltas, el trigger abrió una caja al vender (3 sueltas + 4 cajas = 27). Al
+borrar, devuelve las 13 como **sueltas** (16 + 4 cajas = 40). El total queda
+perfecto, el reparto entre sueltas y cajas no — y eso es **a propósito**, está
+explicado en el comentario de `restaurar_stock_venta`: una caja que se abrió para
+despachar no vuelve a estar cerrada en el depósito.
+
+## Higiene
 
 | Script | Qué hace | Estado |
 |---|---|---|
-| `fix_search_path_funciones.sql` | Fija el `search_path` de las 7 funciones. Prioridad baja: son todas SECURITY INVOKER, así que el warning del linter no implica riesgo de escalada. | ⬜ sin aplicar |
+| `fix_search_path_funciones.sql` | Fija el `search_path` de las 7 funciones. | ✅ aplicado 2026-08-24 |
 
-También queda pendiente, y es un solo botón: Supabase → Authentication → Policies →
-activar **Leaked Password Protection** (chequea las contraseñas contra
+Después de aplicarlo, el linter de seguridad de Supabase queda con **un solo**
+warning: **Leaked Password Protection**, que no es SQL sino un botón en
+Supabase → Authentication → Policies (chequea las contraseñas contra
 HaveIBeenPwned al crearlas).
 
 ## Mantenimiento
