@@ -14,18 +14,36 @@ export default function ResetPasswordPage() {
   const [repetir, setRepetir]   = useState('')
   const [saving, setSaving]     = useState(false)
 
-  // El enlace del mail puede llegar de dos formas según la config de Supabase:
-  //   ?code=...                          (flujo PKCE, el default de @supabase/ssr)
-  //   #access_token=...&type=recovery    (flujo por fragmento)
-  // Contemplamos las dos para no depender de cómo quede configurado el proyecto.
+  // Validación del enlace del mail.
+  //
+  // Lo importante acá: supabase-js **ya hace el trabajo solo**. Apenas se crea
+  // el cliente detecta el token en la URL, lo canjea por una sesión y de paso
+  // borra los parámetros de la barra de direcciones.
+  //
+  // Eso rompía la versión anterior de esta pantalla, que leía la URL a mano:
+  // para cuando el efecto corría, la URL ya estaba limpia, no encontraba
+  // ningún token y mostraba "el enlace no es válido" — con el enlace intacto y
+  // la sesión recién creada. Un enlace perfectamente bueno se veía como vencido.
+  //
+  // Ahora escuchamos el aviso de la librería (evento PASSWORD_RECOVERY) en vez
+  // de competirle, y dejamos la lectura manual solo como respaldo por si la
+  // detección automática no corre.
   useEffect(() => {
     const sb = createClient()
+    let cancelado = false
+
+    const listo = () => { if (!cancelado) setEstado('listo') }
+
+    const { data: suscripcion } = sb.auth.onAuthStateChange((evento, session) => {
+      if (evento === 'PASSWORD_RECOVERY' || (session && evento === 'SIGNED_IN')) listo()
+    })
 
     const validar = async () => {
+      // Respaldo: si los parámetros siguen en la URL, los usamos nosotros.
       const code = new URLSearchParams(window.location.search).get('code')
       if (code) {
         const { error } = await sb.auth.exchangeCodeForSession(code)
-        setEstado(error ? 'invalido' : 'listo')
+        if (!cancelado) setEstado(error ? 'invalido' : 'listo')
         return
       }
 
@@ -34,16 +52,24 @@ export default function ResetPasswordPage() {
       const refresh_token = hash.get('refresh_token')
       if (access_token && refresh_token) {
         const { error } = await sb.auth.setSession({ access_token, refresh_token })
-        setEstado(error ? 'invalido' : 'listo')
+        if (!cancelado) setEstado(error ? 'invalido' : 'listo')
         return
       }
 
-      // Sin token en la URL: puede haber sesión activa (ej. recarga de página).
-      const { data } = await sb.auth.getUser()
-      setEstado(data.user ? 'listo' : 'invalido')
+      // Sin nada en la URL: o la librería ya la limpió, o entraron de una
+      // recarga con la sesión abierta. Damos margen a que el canje termine
+      // antes de declarar el enlace inválido: es asincrónico.
+      for (const espera of [0, 300, 800, 1500]) {
+        if (cancelado) return
+        if (espera) await new Promise(r => setTimeout(r, espera))
+        const { data } = await sb.auth.getSession()
+        if (data.session) { listo(); return }
+      }
+      if (!cancelado) setEstado('invalido')
     }
 
     validar()
+    return () => { cancelado = true; suscripcion.subscription.unsubscribe() }
   }, [])
 
   const guardar = async (e: React.FormEvent) => {
