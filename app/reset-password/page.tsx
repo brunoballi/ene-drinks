@@ -25,9 +25,9 @@ export default function ResetPasswordPage() {
   // ningún token y mostraba "el enlace no es válido" — con el enlace intacto y
   // la sesión recién creada. Un enlace perfectamente bueno se veía como vencido.
   //
-  // Ahora escuchamos el aviso de la librería (evento PASSWORD_RECOVERY) en vez
-  // de competirle, y dejamos la lectura manual solo como respaldo por si la
-  // detección automática no corre.
+  // Ahora escuchamos el aviso de la librería (evento PASSWORD_RECOVERY) y,
+  // como red de seguridad, consultamos la sesión unas cuantas veces antes de
+  // dar el enlace por inválido. Nada de leer ni canjear el token a mano.
   useEffect(() => {
     const sb = createClient()
     let cancelado = false
@@ -38,28 +38,16 @@ export default function ResetPasswordPage() {
       if (evento === 'PASSWORD_RECOVERY' || (session && evento === 'SIGNED_IN')) listo()
     })
 
+    // Nada de canjear el token a mano.
+    //
+    // El token del mail sirve UNA sola vez. Si lo canjeamos nosotros mientras
+    // la librería está haciendo lo mismo, uno de los dos pierde la carrera y
+    // recibe un error — y esta pantalla terminaba mostrando "enlace inválido"
+    // por el intento perdido, con la sesión ya creada por el que ganó.
+    //
+    // Lo único que hacemos es esperar a que la sesión aparezca.
     const validar = async () => {
-      // Respaldo: si los parámetros siguen en la URL, los usamos nosotros.
-      const code = new URLSearchParams(window.location.search).get('code')
-      if (code) {
-        const { error } = await sb.auth.exchangeCodeForSession(code)
-        if (!cancelado) setEstado(error ? 'invalido' : 'listo')
-        return
-      }
-
-      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-      const access_token  = hash.get('access_token')
-      const refresh_token = hash.get('refresh_token')
-      if (access_token && refresh_token) {
-        const { error } = await sb.auth.setSession({ access_token, refresh_token })
-        if (!cancelado) setEstado(error ? 'invalido' : 'listo')
-        return
-      }
-
-      // Sin nada en la URL: o la librería ya la limpió, o entraron de una
-      // recarga con la sesión abierta. Damos margen a que el canje termine
-      // antes de declarar el enlace inválido: es asincrónico.
-      for (const espera of [0, 300, 800, 1500]) {
+      for (const espera of [0, 300, 600, 1000, 1500, 2000]) {
         if (cancelado) return
         if (espera) await new Promise(r => setTimeout(r, espera))
         const { data } = await sb.auth.getSession()
